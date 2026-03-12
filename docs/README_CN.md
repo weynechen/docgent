@@ -1,22 +1,14 @@
 # Writing IDE MVP
 
-这是一个基于 React + Tiptap 的 Docs-as-Code AI 写作 IDE 原型，实现了 PRD 中 `V0 + V1` 的核心闭环：
+这是一个基于 React + Tiptap 的 Docs-as-Code AI 写作 IDE 原型。
 
-- 三栏式写作工作台
-- 基于选区的 AI 改写建议
-- diff 预览与 accept / reject / retry
-- 文档保存与 Markdown 导出预览
-- 手动版本快照、版本差异查看与恢复
+## 文档入口
 
-## 启动方式
+- 产品规格：`product-specs/index.md`
+- 设计文档：`design-docs/index.md`
+- 架构地图：`../ARCHITECTURE.md`
+- 计划与技术债：`PLANS.md`
 
-```bash
-npm install
-npm run dev
-```
+## 当前状态
 
-## 构建
-
-```bash
-npm run build
-```
+项目已完成第一轮工作台 UI 与编辑体验建设，并建立了结构化的 `docs/` 记录系统，供后续智能体和工程师持续维护。

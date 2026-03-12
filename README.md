@@ -24,3 +24,5 @@ npm run build
 ## Documentation
 
 - Chinese README: [docs/README_CN.md](docs/README_CN.md)
+- Docs hub: [docs/product-specs/index.md](docs/product-specs/index.md)
+- Design docs: [docs/design-docs/index.md](docs/design-docs/index.md)

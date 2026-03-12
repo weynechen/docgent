@@ -1,0 +1,3 @@
+Python environment note:
+- prefer uv for Python workflows
+- repository is currently frontend-first, but future Python tooling should still follow uv

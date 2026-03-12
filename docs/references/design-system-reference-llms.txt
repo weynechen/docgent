@@ -1,0 +1,10 @@
+This file stores lightweight notes for LLM-facing reference only.
+
+Use the repository docs as source of truth.
+Do not treat this file as the product spec.
+
+Current UI direction:
+- light workspace
+- dense writing layout
+- center editor prioritized
+- side panels collapsible and resizable
