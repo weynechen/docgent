@@ -1,0 +1,4 @@
+interface:
+  display_name: "Repo Record System"
+  short_description: "Structure repos as navigable agent memory"
+  default_prompt: "Use $repo-record-system to structure this repository as a durable record system for agents and engineers."
