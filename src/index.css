@@ -1,3 +1,6 @@
+@import '../@/styles/_variables.scss';
+@import '../@/styles/_keyframe-animations.scss';
+
 @import "tailwindcss";
 
 @theme {
@@ -44,13 +47,17 @@
 .ProseMirror blockquote,
 .ProseMirror pre,
 .ProseMirror ul {
-  margin: 0 0 1.5rem;
+  margin: 0 0 0.7rem;
 }
 
 .ProseMirror h1,
 .ProseMirror h2 {
   color: #0f172a;
   line-height: 1.12;
+}
+
+.ProseMirror {
+  line-height: 1.35;
 }
 
 .ProseMirror blockquote {
@@ -68,6 +75,15 @@
 
 .ProseMirror ul {
   padding-left: 1.4rem;
+  margin-bottom: 0.7rem;
+}
+
+.ProseMirror li {
+  margin: 0.12rem 0;
+}
+
+.ProseMirror li p {
+  margin: 0;
 }
 
 .ProseMirror:focus {

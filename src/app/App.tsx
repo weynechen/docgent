@@ -1,18 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { EditorContent, useEditor } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
+import { useEditor } from "@tiptap/react";
 import {
   AlignLeft,
   ArrowUp,
   AtSign,
-  Bold,
   FileEdit,
   FileText,
   Folder,
   History,
-  Italic,
-  Link as LinkIcon,
-  List,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
@@ -23,6 +18,7 @@ import {
   Settings,
   Sparkles,
 } from "lucide-react";
+import { SimpleEditor, createSimpleEditorExtensions } from "@/components/tiptap-templates/simple/simple-editor";
 import { useWorkspaceStore } from "./store";
 import { docToMarkdown, markdownToDoc } from "../shared/markdown";
 
@@ -83,13 +79,16 @@ function App() {
   }, [selection?.text]);
 
   const editor = useEditor({
-    extensions: [StarterKit],
+    extensions: createSimpleEditorExtensions(),
     content: activeDoc ? markdownToDoc(activeDoc.content) : undefined,
     immediatelyRender: false,
     editorProps: {
       attributes: {
-        class:
-          "prose prose-slate max-w-none text-lg leading-relaxed text-slate-700 focus:outline-none min-h-[520px]",
+        autocomplete: "off",
+        autocorrect: "off",
+        autocapitalize: "off",
+        "aria-label": "Main content area, start typing to enter text.",
+        class: "simple-editor",
       },
     },
     onSelectionUpdate: ({ editor: instance }) => {
@@ -376,53 +375,8 @@ function App() {
           </div>
         </div>
 
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 bg-white/80 backdrop-blur-md border border-slate-200 p-1 rounded-xl shadow-sm opacity-40 hover:opacity-100 transition-opacity">
-          <button
-            className={`p-1.5 rounded hover:bg-slate-100 text-slate-600${editor?.isActive("bold") ? " bg-slate-100" : ""}`}
-            onClick={() => editor?.chain().focus().toggleBold().run()}
-            type="button"
-          >
-            <Bold size={16} />
-          </button>
-          <button
-            className={`p-1.5 rounded hover:bg-slate-100 text-slate-600${editor?.isActive("italic") ? " bg-slate-100" : ""}`}
-            onClick={() => editor?.chain().focus().toggleItalic().run()}
-            type="button"
-          >
-            <Italic size={16} />
-          </button>
-          <button className="p-1.5 rounded hover:bg-slate-100 text-slate-300" type="button">
-            <LinkIcon size={16} />
-          </button>
-          <div className="w-px h-4 bg-slate-200 mx-1"></div>
-          <button
-            className={`p-1.5 rounded hover:bg-slate-100 text-slate-600${editor?.isActive("bulletList") ? " bg-slate-100" : ""}`}
-            onClick={() => editor?.chain().focus().toggleBulletList().run()}
-            type="button"
-          >
-            <List size={16} />
-          </button>
-          <button
-            className="p-1.5 rounded hover:bg-primary/10 text-primary"
-            onClick={() =>
-              void handleRequestSuggestion(
-                instruction || "Make this clearer while preserving the original judgment.",
-              )
-            }
-            type="button"
-          >
-            <Sparkles size={16} />
-          </button>
-        </div>
-
-        <div className="max-w-[800px] w-full mx-auto px-12 py-24 h-full overflow-y-auto custom-scrollbar">
-          <input
-            className="w-full text-4xl font-bold border-none focus:outline-none focus:ring-0 bg-transparent mb-12 placeholder:text-slate-300"
-            type="text"
-            readOnly
-            value={activeDoc?.name.replace(".md", "") ?? ""}
-          />
-          <EditorContent editor={editor} />
+        <div className="flex-1 min-h-0 bg-white">
+          <SimpleEditor editor={editor} />
         </div>
 
         <footer className="border-t border-slate-100 px-12 py-2 flex justify-between items-center text-[10px] text-slate-400 gap-4">

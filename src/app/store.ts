@@ -2,7 +2,6 @@ import { create } from "zustand";
 import { mockAIProvider } from "../ai/provider";
 import { mockDocumentStore } from "../documents/documentStore";
 import { localVersionStore } from "../documents/versionStore";
-import { docToMarkdown } from "../shared/markdown";
 import type {
   AppliedChange,
   DocFile,
@@ -154,15 +153,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
     set({ isGenerating: true, notice: undefined });
     try {
-      const beforeText = activeDoc.content.slice(Math.max(0, selection.from - 140), selection.from);
-      const afterText = activeDoc.content.slice(selection.to, selection.to + 140);
       const suggestion = await mockAIProvider.rewriteSelection({
         docPath: activeDoc.path,
         selectedText: selection.text,
         instruction,
         documentTitle: activeDoc.name,
-        beforeText,
-        afterText,
       });
 
       set({
@@ -186,17 +181,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       return false;
     }
 
-    const stillMatches = activeDoc.content.slice(selection.from, selection.to) === selection.text;
-    if (!stillMatches) {
-      set({
-        notice: {
-          message: "Selection changed. Re-select the text before applying this suggestion.",
-          tone: "error",
-        },
-      });
-      return false;
-    }
-
     const applied = updater({
       from: selection.from,
       to: selection.to,
@@ -213,28 +197,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       return false;
     }
 
-    set((state) => {
-      if (!state.activeDoc) {
-        return state;
-      }
-
-      const nextContent =
-        state.activeDoc.content.slice(0, selection.from) +
-        currentSuggestion.suggestedText +
-        state.activeDoc.content.slice(selection.to);
-
-      const updatedDoc = {
-        ...state.activeDoc,
-        content: nextContent,
-        isDirty: true,
-      };
-
+    set(() => {
       return {
-        activeDoc: updatedDoc,
-        docs: state.docs.map((doc) => (doc.path === updatedDoc.path ? updatedDoc : doc)),
         lastAppliedChange: {
           suggestionId: currentSuggestion.id,
-          docPath: state.activeDoc.path,
+          docPath: activeDoc.path,
           originalText: selection.text,
           appliedText: currentSuggestion.suggestedText,
           appliedAt: Date.now(),
@@ -343,7 +310,3 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     });
   },
 }));
-
-export function exportCurrentMarkdown() {
-  return docToMarkdown(null);
-}
