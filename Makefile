@@ -1,0 +1,187 @@
+.PHONY: install format lint test run clean help db-init
+
+# === Setup ===
+install:
+	uv sync --project backend --extra dev
+	@if git rev-parse --git-dir > /dev/null 2>&1; then \
+		uv run --project backend pre-commit install; \
+	else \
+		echo "⚠️  Not a git repository - skipping pre-commit install"; \
+		echo "   Run 'git init && make install' to set up pre-commit hooks"; \
+	fi
+	@echo ""
+	@echo "✅ Installation complete!"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  • make docker-db        # Start PostgreSQL"
+	@echo "  • make db-upgrade       # Apply migrations"
+	@echo "  • make run              # Start development server"
+	@echo ""
+	@echo "Note: backend/.env is pre-configured for development"
+
+# === Code Quality ===
+format:
+	uv run --project backend ruff format app tests cli
+	uv run --project backend ruff check app tests cli --fix
+
+lint:
+	uv run --project backend ruff check app tests cli
+	uv run --project backend ruff format app tests cli --check
+	uv run --project backend mypy app
+
+# === Testing ===
+test:
+	uv run --project backend pytest tests/ -v
+
+test-cov:
+	uv run --project backend pytest tests/ -v --cov=app --cov-report=html --cov-report=term-missing
+
+# === Database ===
+db-init: docker-db
+	@echo "Waiting for PostgreSQL to be ready..."
+	@sleep 3
+	uv run --project backend docgent_backend db upgrade
+	@echo ""
+	@echo "✅ Database initialized!"
+
+db-migrate:
+	@read -p "Migration message: " msg; \
+	uv run --project backend docgent_backend db migrate -m "$$msg"
+
+db-upgrade:
+	uv run --project backend docgent_backend db upgrade
+
+db-downgrade:
+	uv run --project backend docgent_backend db downgrade
+
+db-current:
+	uv run --project backend docgent_backend db current
+
+db-history:
+	uv run --project backend docgent_backend db history
+
+# === Server ===
+run:
+	npx concurrently -k "npm run dev" "uv run --project backend docgent_backend server run --reload --host 127.0.0.1 --port 8000"
+
+run-backend:
+	uv run --project backend docgent_backend server run --reload
+
+run-prod:
+	uv run --project backend docgent_backend server run --host 0.0.0.0 --port 8000
+
+routes:
+	uv run --project backend docgent_backend server routes
+
+# === Users ===
+create-admin:
+	@echo "Creating admin user..."
+	uv run --project backend docgent_backend user create-admin
+
+user-create:
+	uv run --project backend docgent_backend user create
+
+user-list:
+	uv run --project backend docgent_backend user list
+
+# === Docker: Backend (Development) ===
+docker-up:
+	docker-compose up -d
+	@echo ""
+	@echo "✅ Backend services started!"
+	@echo "   API: http://localhost:8000"
+	@echo "   Docs: http://localhost:8000/docs"
+	@echo "   PostgreSQL: localhost:5432"
+
+docker-down:
+	docker-compose down
+
+docker-logs:
+	docker-compose logs -f
+
+docker-build:
+	docker-compose build
+
+docker-shell:
+	docker-compose exec app /bin/bash
+
+# === Docker: Production (with Traefik) ===
+docker-prod:
+	docker-compose -f docker-compose.prod.yml up -d
+	@echo ""
+	@echo "✅ Production services started with Traefik!"
+	@echo ""
+	@echo "Endpoints (replace DOMAIN with your domain):"
+	@echo "   API: https://api.$$DOMAIN"
+	@echo "   Traefik: https://traefik.$$DOMAIN"
+
+docker-prod-down:
+	docker-compose -f docker-compose.prod.yml down
+
+docker-prod-logs:
+	docker-compose -f docker-compose.prod.yml logs -f
+
+docker-prod-build:
+	docker-compose -f docker-compose.prod.yml build
+
+# === Docker: Individual Services ===
+docker-db:
+	docker-compose up -d db
+	@echo ""
+	@echo "✅ PostgreSQL started on port 5432"
+	@echo "   Connection: postgresql://postgres:postgres@localhost:5432/docgent"
+
+docker-db-stop:
+	docker-compose stop db
+
+# === Cleanup ===
+clean:
+	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name .ruff_cache -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name .mypy_cache -exec rm -rf {} + 2>/dev/null || true
+	rm -rf htmlcov/ .coverage coverage.xml
+
+# === Help ===
+help:
+	@echo ""
+	@echo "docgent backend - Available Commands"
+	@echo "======================================"
+	@echo ""
+	@echo "Setup:"
+	@echo "  make install       Install dependencies + pre-commit hooks"
+	@echo ""
+	@echo "Development:"
+	@echo "  make run           Start dev server (with hot reload)"
+	@echo "  make test          Run tests"
+	@echo "  make lint          Check code quality"
+	@echo "  make format        Auto-format code"
+	@echo ""
+	@echo "Database:"
+	@echo "  make db-init       Initialize database (start + migrate)"
+	@echo "  make db-migrate    Create new migration"
+	@echo "  make db-upgrade    Apply migrations"
+	@echo "  make db-downgrade  Rollback last migration"
+	@echo "  make db-current    Show current migration"
+	@echo ""
+	@echo "Users:"
+	@echo "  make create-admin  Create admin user (for SQLAdmin access)"
+	@echo "  make user-create   Create new user (interactive)"
+	@echo "  make user-list     List all users"
+	@echo ""
+	@echo "Docker (Development):"
+	@echo "  make docker-up            Start backend services"
+	@echo "  make docker-down          Stop all services"
+	@echo "  make docker-logs          View backend logs"
+	@echo "  make docker-build         Build backend images"
+	@echo "  make docker-db            Start only PostgreSQL"
+	@echo ""
+	@echo "Docker (Production with Traefik):"
+	@echo "  make docker-prod          Start production stack"
+	@echo "  make docker-prod-down     Stop production stack"
+	@echo "  make docker-prod-logs     View production logs"
+	@echo ""
+	@echo "Other:"
+	@echo "  make routes        Show all API routes"
+	@echo "  make clean         Clean cache files"
+	@echo ""

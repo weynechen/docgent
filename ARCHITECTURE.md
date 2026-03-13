@@ -2,7 +2,7 @@
 
 ## 概览
 
-当前项目已从“单前端原型”进入“前端 + 云端 backend 目标架构”的阶段。目标方向对齐 `full-stack-ai-agent-template` 的分层思路，但保留本项目自己的 React/Tiptap 前端与桌面策略。
+当前项目已从“单前端原型”进入“前端 + 模板化 backend”的阶段。后端已经基于 `fastapi-fullstack` / `full-stack-ai-agent-template` 生成并融合到当前仓库，同时保留本项目自己的 React/Tiptap 前端与桌面策略。
 
 目标架构是：
 
@@ -12,7 +12,7 @@
 
 在目标架构中，AI 运行框架改为 `LangChain`，优先复用模板已有能力，不再以 OpenAI Agents 作为主线。
 
-当前仓库仍保留一个本地 Node AI 原型，供开发阶段验证交互链路，但它不再代表长期服务端方向。
+当前仓库的 AI 主线已经切换到 `backend` 中的 Python FastAPI + LangChain 实现。
 
 ## 分层
 
@@ -36,26 +36,33 @@
   - `storage.ts`：浏览器持久化辅助
   - `diff.ts`：差异预览逻辑
 
-### 云端后端目标目录
+### 云端后端目录
 
 - `backend/app/api`
-  - 预留给 FastAPI 路由与流式接口
+  - FastAPI 路由、依赖注入、异常处理与版本化入口
 - `backend/app/services`
-  - 负责认证、用户、文档、版本、任务编排等应用服务
-- `backend/app/repos`
+  - 负责认证、用户、会话、rewrite run 等应用服务
+- `backend/app/repositories`
   - 负责数据库访问
 - `backend/app/agents`
-  - 负责 LangChain agents、chains、tools 与模型调用
+  - 负责 LangChain agents、prompts、tools 与模型调用
 - `backend/app/core`
   - 负责配置、鉴权、依赖注入与基础能力
+- `backend/app/db`
+  - 负责数据库 session 与模型
+- `backend/cli`
+  - 模板生成的 Django 风格管理命令入口
 
-该结构优先复用 `full-stack-ai-agent-template` 的已有能力，而不是在当前仓库重新设计一套 agent 基础设施。
+该结构直接复用模板生成的主后端实现，而不是手工模仿模板目录。
 
-### 过渡原型目录
+### 已落地 AI 路径
 
-- `prototypes/local-agent/server/`
-  - 当前开发期使用的本地 Node rewrite 原型
-  - 仅作为过渡验证实现，不是长期主线
+- `backend/app/api/routes/v1/rewrite.py`
+  - 提供选区改写 HTTP + SSE 接口
+- `backend/app/services/rewrite.py`
+  - 负责 run 注册、事件回放、状态流与内存态清理
+- `backend/app/agents/rewrite.py`
+  - 负责 prompt 组装、上下文裁剪与 LangChain 模型调用
 
 ### 编辑器 UI 层
 
@@ -70,13 +77,13 @@
 
 - 文档存储仍是 mock/in-memory，不是本地文件系统
 - 版本系统是应用内快照，不是 Git
-- 当前 AI 改写仍依赖本地 Node 原型服务，不代表长期云端实现
+- 当前 AI 改写已切换到模板化 Python backend；仍未接入持久化任务队列
 - 右栏 AI 面板与编辑器模板是集成关系，不是统一插件系统
-- `backend` 与 `desktop` 目前还是目标目录，占位多于实现
+- `desktop` 仍是目标目录，占位多于实现
 
 ## 后续演进
 
-1. 将当前本地 Node AI 原型替换为 `backend` 中的 Python LangChain 实现。
-2. 在 `backend` 内部落地模板式分层，而不是过早拆微服务。
-3. MVP 阶段使用日志观测，后续优先接模板现有的 LangChain 观测扩展点。
+1. 将 rewrite run 从内存态扩展到可持久化或可恢复的任务模型。
+2. 在模板后端中继续接入文档、版本与用户域能力，而不是额外再迁一次模板。
+3. MVP 阶段继续使用日志观测，后续优先接模板现有的 LangChain 观测扩展点。
 4. 在 `desktop` 中实现仅连接远端 API 的桌面壳。

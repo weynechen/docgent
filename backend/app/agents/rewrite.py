@@ -1,0 +1,95 @@
+"""Rewrite agent implementation built on LangChain chat models."""
+
+from __future__ import annotations
+
+from uuid import uuid4
+
+from langchain_openai import ChatOpenAI
+from pydantic import BaseModel, Field
+
+from app.agents.prompts import REWRITE_SELECTION_SYSTEM_PROMPT
+from app.core.config import settings
+from app.core.exceptions import ExternalServiceError
+from app.schemas.rewrite import RewriteRequest, RewriteSuggestion
+
+MAX_CONTEXT_CHARS = 280
+
+
+class RewriteModelOutput(BaseModel):
+    """Structured output returned by the model."""
+
+    suggested_text: str = Field(min_length=1)
+    explanation: str = Field(min_length=1)
+
+
+def _trim_before_context(text: str | None) -> str:
+    if not text:
+        return ""
+
+    compact = " ".join(text.split()).strip()
+    if len(compact) <= MAX_CONTEXT_CHARS:
+        return compact
+    return compact[-MAX_CONTEXT_CHARS:]
+
+
+def _trim_after_context(text: str | None) -> str:
+    if not text:
+        return ""
+
+    compact = " ".join(text.split()).strip()
+    if len(compact) <= MAX_CONTEXT_CHARS:
+        return compact
+    return compact[:MAX_CONTEXT_CHARS]
+
+
+def build_rewrite_prompt(request: RewriteRequest) -> str:
+    """Build the user prompt from the rewrite request."""
+
+    return "\n\n".join(
+        [
+            f"Document title: {request.document_title or request.doc_path}",
+            f"Instruction: {request.instruction}",
+            f"Selected text:\n{request.selected_text}",
+            f"Before context:\n{_trim_before_context(request.before_text) or '(none)'}",
+            f"After context:\n{_trim_after_context(request.after_text) or '(none)'}",
+        ]
+    )
+
+
+class RewriteSelectionAgent:
+    """Selection rewrite agent for the editor workflow."""
+
+    def __init__(self) -> None:
+        self.model = ChatOpenAI(
+            model=settings.AI_MODEL,
+            temperature=0.3,
+            api_key=settings.OPENAI_API_KEY or None,
+            base_url=settings.OPENAI_BASE_URL,
+        )
+
+    async def rewrite(self, request: RewriteRequest) -> RewriteSuggestion:
+        """Rewrite the selected passage and return a structured suggestion."""
+
+        if not settings.OPENAI_API_KEY:
+            raise ExternalServiceError(
+                message="OPENAI_API_KEY is not configured for the backend AI service.",
+                code="MODEL_NOT_CONFIGURED",
+            )
+
+        runnable = self.model.with_structured_output(RewriteModelOutput)
+        result = await runnable.ainvoke(
+            [
+                ("system", REWRITE_SELECTION_SYSTEM_PROMPT),
+                ("user", build_rewrite_prompt(request)),
+            ]
+        )
+
+        return RewriteSuggestion(
+            id=str(uuid4()),
+            suggestedText=result.suggested_text.strip(),
+            explanation=result.explanation.strip(),
+            createdAt=0,
+            instruction=request.instruction,
+            provider=settings.LLM_PROVIDER,
+            model=settings.AI_MODEL,
+        )

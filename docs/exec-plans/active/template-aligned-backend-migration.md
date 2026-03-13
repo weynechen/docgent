@@ -10,14 +10,14 @@
 - AI 运行框架改为 LangChain
 - MVP 阶段使用日志做基础观测
 
-当前仓库中的 `prototypes/local-agent` 仅是开发期过渡实现。
+模板已生成并融合到仓库主线，`backend` 现在直接采用模板生成的结构和运行方式。
 
 ## 当前目标
 
 1. 将当前前端工作区稳定在 `frontend`
 2. 将云端能力收敛到单个 `backend` 目录内，而不是拆分多个空服务
 3. 尽量复用模板已有的 FastAPI / LangChain / streaming / 分层组织能力
-4. 逐步移除前端对本地 Node 原型的长期依赖
+4. 将前端 AI 调用切换到模板 backend 并清理过渡目录
 
 ## 当前决策
 
@@ -27,9 +27,15 @@
 - LangChain 作为 AI 主框架
 - MVP 观测先用日志，后续优先复用模板已有观测扩展点
 
-## 待办
+## 当前进展
 
-- 定义 backend 的最小目录骨架与运行入口
-- 定义 rewrite 流程在 FastAPI + LangChain 中的最小实现方式
-- 明确前端只调用 backend API 的接口边界
-- 将当前 `prototypes/local-agent` 的能力迁移到 backend
+- 模板后端已整体迁入根目录 `backend`
+- 根级 `Makefile`、`docker-compose*.yml`、`nginx/` 已按模板方式接入
+- 选区改写已实现为 `backend/app/api/routes/v1/rewrite.py`
+- 前端 provider 已切换到 `/api/v1/ai/rewrite/*`
+
+## 剩余工作
+
+- 将 rewrite run 从内存态升级为更长期的任务模型
+- 决定何时把文档/版本域从 mock 迁到后端
+- 补充基于真实 HTTP/SSE 的端到端联调测试

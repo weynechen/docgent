@@ -1,21 +1,22 @@
 # Writing IDE MVP
 
-A Docs-as-Code AI writing workspace with a frontend-first product surface and a cloud-oriented backend direction aligned with `full-stack-ai-agent-template`.
+A Docs-as-Code AI writing workspace with a React/Tiptap frontend and a FastAPI backend fully migrated onto the `fastapi-fullstack` / `full-stack-ai-agent-template` structure.
 
 Current repository structure:
 
 - `frontend`: active React + Tiptap workspace
 - `desktop`: planned Electron shell
-- `backend`: planned Python backend aligned with the template's layering style
-- `prototypes/local-agent`: transitional local Node rewrite prototype for development
+- `backend`: active Python backend generated from the template and adapted to this product
+- `nginx` / `docker-compose*.yml` / `Makefile`: template-aligned operational assets
 
-The active prototype currently implements:
+The current product surface implements:
 
 - three-panel writing workspace
 - selection-aware AI rewrite flow with status streaming, diff preview, and accept/reject
 - mock document store with multiple Markdown drafts
 - manual version snapshots, history diff, and restore
 - Markdown export preview from the current editor state
+- FastAPI rewrite backend at `/api/v1/ai/rewrite/*`
 
 ## Development
 
@@ -30,7 +31,7 @@ Create a local `.env` first:
 cp .env.example .env
 ```
 
-`npm run dev` runs `frontend` together with the transitional local prototype agent in `prototypes/local-agent`.
+`npm run dev` runs the frontend only.
 
 Required environment variables:
 
@@ -38,11 +39,32 @@ Required environment variables:
 - `OPENAI_MODEL` (default: `gpt-4o-mini`)
 - `OPENAI_BASE_URL` (default: `https://api.openai.com/v1`)
 
+Optional local backend variables:
+
+- `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
+- `SECRET_KEY`
+- `CORS_ORIGINS`
+
 ## Build
 
 ```bash
 npm run build
 ```
+
+## Full Stack
+
+```bash
+make install
+make run
+```
+
+Useful commands:
+
+- `npm run dev`
+- `make run-backend`
+- `make test`
+- `make routes`
+- `uv run --project backend docgent_backend --version`
 
 ## Documentation
 

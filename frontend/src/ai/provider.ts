@@ -36,7 +36,7 @@ export async function startRewriteSelectionRun(
   input: EditRequest,
   handlers: RewriteStreamHandlers,
 ): Promise<() => void> {
-  const response = await fetch("/api/ai/rewrite", {
+  const response = await fetch("/api/v1/ai/rewrite/runs", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -45,12 +45,19 @@ export async function startRewriteSelectionRun(
   });
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || "Failed to start rewrite request.");
+    let message = "Failed to start rewrite request.";
+    try {
+      const payload = (await response.json()) as { error?: { message?: string } };
+      message = payload.error?.message || message;
+    } catch {
+      const text = await response.text();
+      message = text || message;
+    }
+    throw new Error(message);
   }
 
   const { requestId } = (await response.json()) as RewriteRunResponse;
-  const eventSource = new EventSource(`/api/ai/rewrite/${requestId}/events`);
+  const eventSource = new EventSource(`/api/v1/ai/rewrite/${requestId}/events`);
 
   const close = () => {
     eventSource.close();
@@ -65,7 +72,7 @@ export async function startRewriteSelectionRun(
         type: "error",
         runId: requestId,
         code: "invalid_event",
-        message: "Received an invalid event from the local AI service.",
+        message: "Received an invalid event from the backend AI service.",
         createdAt: Date.now(),
       });
       close();
@@ -77,7 +84,7 @@ export async function startRewriteSelectionRun(
         type: "error",
         runId: requestId,
         code: "unexpected_event",
-        message: "Received an unsupported event from the local AI service.",
+        message: "Received an unsupported event from the backend AI service.",
         createdAt: Date.now(),
       });
       close();
@@ -107,7 +114,7 @@ export async function startRewriteSelectionRun(
       type: "error",
       runId: requestId,
       code: "stream_disconnected",
-      message: "Connection to the local AI service was interrupted.",
+      message: "Connection to the backend AI service was interrupted.",
       createdAt: Date.now(),
     });
     close();
