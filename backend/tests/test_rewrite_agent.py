@@ -6,6 +6,7 @@ from app.agents.rewrite import (
     _trim_before_context,
     build_rewrite_prompt,
 )
+from app.agents.prompts import REWRITE_SELECTION_SYSTEM_PROMPT
 from app.schemas.rewrite import RewriteRequest
 
 
@@ -41,3 +42,11 @@ def test_build_rewrite_prompt_includes_fields():
     assert "Selected text:\nOriginal sentence." in prompt
     assert "Before context:\nBefore context" in prompt
     assert "After context:\nAfter context" in prompt
+
+
+def test_rewrite_system_prompt_mentions_json_output():
+    """Structured-output providers may require an explicit JSON instruction."""
+
+    assert "json" in REWRITE_SELECTION_SYSTEM_PROMPT.lower()
+    assert "suggested_text" in REWRITE_SELECTION_SYSTEM_PROMPT
+    assert "explanation" in REWRITE_SELECTION_SYSTEM_PROMPT

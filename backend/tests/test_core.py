@@ -1,6 +1,6 @@
 """Tests for core modules."""
 
-from app.core.config import settings
+from app.core.config import Settings, settings
 from app.core.exceptions import (
     AlreadyExistsError,
     AppException,
@@ -25,6 +25,15 @@ class TestSettings:
     def test_openai_base_url_is_set(self):
         """Test OpenAI-compatible base URL is configured."""
         assert settings.OPENAI_BASE_URL.startswith("http")
+
+    def test_openai_model_alias_is_supported(self, monkeypatch):
+        """Test OPENAI_MODEL is accepted as a legacy alias for AI_MODEL."""
+        monkeypatch.delenv("AI_MODEL", raising=False)
+        monkeypatch.setenv("OPENAI_MODEL", "qwen3.5-plus")
+
+        test_settings = Settings(_env_file=None)
+
+        assert test_settings.AI_MODEL == "qwen3.5-plus"
 
     def test_debug_mode_default(self):
         """Test debug mode has default value."""

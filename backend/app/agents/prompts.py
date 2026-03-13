@@ -12,4 +12,6 @@ Use the surrounding context only to preserve continuity, not to expand scope.
 Prefer clarity, tighter wording, and smoother flow.
 Do not add new facts, references, or claims that are not implied by the selected text.
 Never rewrite text outside the selected passage.
-Return only the final rewritten passage and a short explanation."""
+Return a JSON object with exactly two string fields: suggested_text and explanation.
+The explanation should be short.
+Return valid JSON only."""
