@@ -14,6 +14,7 @@
 
 ## 记录系统原则
 
+重要：不要让文档腐烂，当设计变更，进度变更时，必须更新对应的文档。
 1. `docs/` 是代码仓库的记录系统，重要决策必须写回仓库，而不是停留在对话里。
 2. 计划是第一等工件：复杂工作进入 `docs/exec-plans/active/`，完成后移到 `docs/exec-plans/completed/`。
 3. 产品与设计信息分层维护：产品规格写在 `docs/product-specs/`，设计理念和验证状态写在 `docs/design-docs/`。
