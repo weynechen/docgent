@@ -91,7 +91,7 @@ docker-up:
 	@echo "✅ Backend services started!"
 	@echo "   API: http://localhost:8000"
 	@echo "   Docs: http://localhost:8000/docs"
-	@echo "   PostgreSQL: localhost:5432"
+	@echo "   PostgreSQL: localhost:5433"
 
 docker-down:
 	docker-compose down
@@ -128,8 +128,8 @@ docker-prod-build:
 docker-db:
 	docker-compose up -d db
 	@echo ""
-	@echo "✅ PostgreSQL started on port 5432"
-	@echo "   Connection: postgresql://postgres:postgres@localhost:5432/docgent"
+	@echo "✅ PostgreSQL started on port 5433"
+	@echo "   Connection: postgresql://postgres:postgres@localhost:5433/docgent"
 
 docker-db-stop:
 	docker-compose stop db

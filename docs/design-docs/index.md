@@ -8,6 +8,8 @@
 
 - `core-beliefs.md`
   - 核心理念与智能体优先的工作原则
+- `cdp-browser-skill.md`
+  - Chrome DevTools Protocol 接入 agent runtime 与浏览器技能设计
 - `ui-workspace-current.md`
   - 当前工作台 UI 结构、关键交互和已验证决策
 - `validation-status.md`

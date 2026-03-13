@@ -1,8 +1,31 @@
 """Project management CLI."""
 # ruff: noqa: E402 - Import at bottom to avoid circular imports
 
+from pathlib import Path
+
 import click
 from tabulate import tabulate
+
+
+def _get_backend_root() -> Path:
+    """Return the backend project root directory."""
+    return Path(__file__).resolve().parents[1]
+
+
+def _get_alembic_ini_path() -> Path:
+    """Return the absolute path to the Alembic configuration file."""
+    return _get_backend_root() / "alembic.ini"
+
+
+def _get_alembic_config():
+    """Build an Alembic config that works from any current working directory."""
+    from alembic.config import Config
+
+    backend_root = _get_backend_root()
+    alembic_cfg = Config(str(_get_alembic_ini_path()))
+    alembic_cfg.set_main_option("script_location", str(backend_root / "alembic"))
+    alembic_cfg.set_main_option("prepend_sys_path", str(backend_root))
+    return alembic_cfg
 
 
 @click.group()
@@ -60,10 +83,9 @@ def db_cli():
 def db_init():
     """Initialize the database (run all migrations)."""
     from alembic import command
-    from alembic.config import Config
 
     click.echo("Initializing database...")
-    alembic_cfg = Config("alembic.ini")
+    alembic_cfg = _get_alembic_config()
     command.upgrade(alembic_cfg, "head")
     click.secho("Database initialized.", fg="green")
 
@@ -73,9 +95,8 @@ def db_init():
 def db_migrate(message: str):
     """Create a new migration."""
     from alembic import command
-    from alembic.config import Config
 
-    alembic_cfg = Config("alembic.ini")
+    alembic_cfg = _get_alembic_config()
     command.revision(alembic_cfg, message=message, autogenerate=True)
     click.secho(f"Migration created: {message}", fg="green")
 
@@ -85,9 +106,8 @@ def db_migrate(message: str):
 def db_upgrade(revision: str):
     """Run database migrations."""
     from alembic import command
-    from alembic.config import Config
 
-    alembic_cfg = Config("alembic.ini")
+    alembic_cfg = _get_alembic_config()
     command.upgrade(alembic_cfg, revision)
     click.secho(f"Upgraded to: {revision}", fg="green")
 
@@ -97,9 +117,8 @@ def db_upgrade(revision: str):
 def db_downgrade(revision: str):
     """Rollback database migrations."""
     from alembic import command
-    from alembic.config import Config
 
-    alembic_cfg = Config("alembic.ini")
+    alembic_cfg = _get_alembic_config()
     command.downgrade(alembic_cfg, revision)
     click.secho(f"Downgraded to: {revision}", fg="green")
 
@@ -108,9 +127,8 @@ def db_downgrade(revision: str):
 def db_current():
     """Show current migration revision."""
     from alembic import command
-    from alembic.config import Config
 
-    alembic_cfg = Config("alembic.ini")
+    alembic_cfg = _get_alembic_config()
     command.current(alembic_cfg)
 
 
@@ -118,9 +136,8 @@ def db_current():
 def db_history():
     """Show migration history."""
     from alembic import command
-    from alembic.config import Config
 
-    alembic_cfg = Config("alembic.ini")
+    alembic_cfg = _get_alembic_config()
     command.history(alembic_cfg)
 
 

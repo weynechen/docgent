@@ -9,9 +9,26 @@ uv sync --project backend --extra dev
 uv run --project backend docgent_backend server run --reload
 ```
 
+If you run backend commands from the repository root, prefer the `make` wrappers:
+
+```bash
+make docker-db
+make db-upgrade
+make run-backend
+```
+
+Environment split:
+
+- Root `.env` is used by local `make run` / `uv run` workflows
+- `backend/.env` is used by `docker-compose` for the backend container
+- Host Docker PostgreSQL is exposed on `5433`
+- Container-to-container PostgreSQL stays on `5432`
+
 ## Logging
 
 - Default log directory: `../logs` relative to `backend/`, i.e. repository root `logs/`
+- Each backend start writes to a fresh `logs/runs/<timestamp-pid>/` directory
+- `logs/latest` points to the newest run directory
 - Files: `app.log` for general runtime/access logs, `error.log` for errors and exceptions
 - Rotation: controlled by `LOG_MAX_BYTES` and `LOG_BACKUP_COUNT`
 - Override with `LOG_DIR` if you need a different location

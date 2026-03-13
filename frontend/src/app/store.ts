@@ -1,9 +1,17 @@
 import { create } from "zustand";
-import { applyRewriteRun, discardRewriteRun, startRewriteSelectionRun } from "../ai/provider";
+import {
+  applyRewriteRun,
+  discardRewriteRun,
+  startAgentChatRun,
+  startRewriteSelectionRun,
+} from "../ai/provider";
 import { remoteDocumentStore } from "../documents/documentStore";
 import { localVersionStore } from "../documents/versionStore";
 import type {
   AppliedChange,
+  AgentChatHistoryMessage,
+  AgentChatMessage,
+  AgentToolEvent,
   DocFile,
   EditSuggestion,
   RewriteStatusEvent,
@@ -27,6 +35,9 @@ interface WorkspaceState {
   currentSuggestion?: EditSuggestion;
   activeRunId?: string;
   agentStatusTrail: RewriteStatusEvent[];
+  chatMessages: AgentChatMessage[];
+  toolEvents: AgentToolEvent[];
+  conversationId?: string;
   agentRunState: "idle" | "running" | "complete" | "error";
   isGenerating: boolean;
   versions: VersionSnapshot[];
@@ -40,6 +51,7 @@ interface WorkspaceState {
   setSelection: (selection?: SelectionContext) => void;
   clearSuggestion: () => void;
   requestSuggestion: (instruction: string) => Promise<void>;
+  sendChatMessage: (message: string) => Promise<void>;
   applySuggestion: () => Promise<boolean>;
   rejectSuggestion: () => Promise<void>;
   createVersion: (title?: string, source?: "manual" | "ai") => Promise<void>;
@@ -59,9 +71,36 @@ function closeActiveRewriteStream() {
   activeRewriteStream = undefined;
 }
 
+function createMessageId(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function summarizeArgs(args: Record<string, unknown>) {
+  const entries = Object.entries(args);
+  if (entries.length === 0) {
+    return "";
+  }
+  return entries
+    .map(([key, value]) => `${key}: ${typeof value === "string" ? value : JSON.stringify(value)}`)
+    .join(", ")
+    .slice(0, 240);
+}
+
+function toHistory(messages: AgentChatMessage[]): AgentChatHistoryMessage[] {
+  return messages
+    .filter((message) => message.role === "user" || message.role === "assistant" || message.role === "system")
+    .filter((message) => message.status !== "error")
+    .map((message) => ({
+      role: message.role,
+      content: message.content,
+    }));
+}
+
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   docs: [],
   agentStatusTrail: [],
+  chatMessages: [],
+  toolEvents: [],
   agentRunState: "idle",
   isGenerating: false,
   versions: [],
@@ -90,10 +129,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       activeDoc,
       docs: state.docs.map((doc) => (doc.path === activeDoc.path ? activeDoc : doc)),
       versions,
+      chatMessages: [],
+      conversationId: undefined,
       selection: undefined,
       currentSuggestion: undefined,
       activeRunId: undefined,
       agentStatusTrail: [],
+      toolEvents: [],
       agentRunState: "idle",
       isGenerating: false,
       selectedVersionId: undefined,
@@ -156,6 +198,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       currentSuggestion: undefined,
       activeRunId: undefined,
       agentStatusTrail: [],
+      toolEvents: [],
       agentRunState: "idle",
       isGenerating: false,
     });
@@ -167,6 +210,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       currentSuggestion: undefined,
       activeRunId: undefined,
       agentStatusTrail: [],
+      toolEvents: [],
       agentRunState: "idle",
       isGenerating: false,
     });
@@ -252,6 +296,213 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
           tone: "error",
         },
       });
+    }
+  },
+
+  async sendChatMessage(message) {
+    const { activeDoc, sessionId, selection, conversationId, chatMessages } = get();
+    const trimmed = message.trim();
+    if (!activeDoc || !sessionId || !trimmed) {
+      return;
+    }
+
+    closeActiveRewriteStream();
+
+    let syncedDoc = activeDoc;
+    if (activeDoc.isDirty) {
+      try {
+        syncedDoc = await remoteDocumentStore.saveDoc(
+          activeDoc.path,
+          activeDoc.content,
+          activeDoc.revision,
+        );
+        set((state) => ({
+          activeDoc: syncedDoc,
+          docs: state.docs.map((doc) => (doc.path === syncedDoc.path ? syncedDoc : doc)),
+        }));
+      } catch (error) {
+        set({
+          notice: {
+            message: error instanceof Error ? error.message : "Failed to save document before AI chat.",
+            tone: "error",
+          },
+        });
+        return;
+      }
+    }
+
+    const userMessage: AgentChatMessage = {
+      id: createMessageId("user"),
+      role: "user",
+      content: trimmed,
+      status: "complete",
+      createdAt: Date.now(),
+    };
+    const assistantMessageId = createMessageId("assistant");
+    const assistantMessage: AgentChatMessage = {
+      id: assistantMessageId,
+      role: "assistant",
+      content: "",
+      status: "streaming",
+      createdAt: Date.now(),
+    };
+    const history = toHistory([...chatMessages, userMessage]);
+
+    set((state) => ({
+      chatMessages: [...state.chatMessages, userMessage, assistantMessage],
+      toolEvents: [],
+      isGenerating: true,
+      agentRunState: "running",
+      notice: undefined,
+    }));
+
+    try {
+      const stream = await startAgentChatRun(
+        {
+          sessionId,
+          docPath: syncedDoc.path,
+          message: trimmed,
+          history,
+          conversationId,
+          selection,
+        },
+        {
+          onConversationCreated: (event) => {
+            set({ conversationId: event.data.conversation_id });
+          },
+          onTextDelta: (event) => {
+            set((state) => ({
+              chatMessages: state.chatMessages.map((item) =>
+                item.id === assistantMessageId
+                  ? { ...item, content: item.content + event.data.content }
+                  : item,
+              ),
+            }));
+          },
+          onToolCall: (event) => {
+            set((state) => ({
+              toolEvents: [
+                ...state.toolEvents,
+                {
+                  id: createMessageId("tool"),
+                  toolCallId: event.data.tool_call_id,
+                  toolName: event.data.tool_name,
+                  argsSummary: summarizeArgs(event.data.args),
+                  status: "running",
+                },
+              ],
+            }));
+          },
+          onToolResult: (event) => {
+            set((state) => ({
+              toolEvents: state.toolEvents.map((item) =>
+                item.toolCallId === event.data.tool_call_id
+                  ? { ...item, status: "complete", resultSummary: event.data.content }
+                  : item,
+              ),
+            }));
+          },
+          onFinalResult: (event) => {
+            set((state) => ({
+              chatMessages: state.chatMessages.map((item) =>
+                item.id === assistantMessageId && !item.content
+                  ? { ...item, content: event.data.output }
+                  : item,
+              ),
+            }));
+          },
+          onWorkspaceFileUpdated: (event) => {
+            set((state) => {
+              const updatedDoc: DocFile | undefined =
+                state.activeDoc?.path === event.data.doc_path
+                  ? {
+                      ...state.activeDoc,
+                      content: event.data.content,
+                      revision: event.data.revision,
+                      isDirty: false,
+                      lastSavedAt: event.data.last_saved_at,
+                    }
+                  : state.activeDoc;
+
+              return {
+                activeDoc: updatedDoc,
+                docs: state.docs.map((doc) =>
+                  doc.path === event.data.doc_path
+                    ? {
+                        ...doc,
+                        content: event.data.content,
+                        revision: event.data.revision,
+                        isDirty: false,
+                        lastSavedAt: event.data.last_saved_at,
+                      }
+                    : doc,
+                ),
+                notice: {
+                  message: `AI updated ${event.data.doc_path} in the backend workspace.`,
+                  tone: "success",
+                },
+              };
+            });
+          },
+          onComplete: (event) => {
+            closeActiveRewriteStream();
+            set((state) => ({
+              conversationId: event.data.conversation_id ?? state.conversationId,
+              chatMessages: state.chatMessages.map((item) =>
+                item.id === assistantMessageId
+                  ? {
+                      ...item,
+                      status: "complete",
+                      content: item.content || "Completed.",
+                    }
+                  : item,
+              ),
+              isGenerating: false,
+              agentRunState: "complete",
+            }));
+          },
+          onError: (event) => {
+            closeActiveRewriteStream();
+            set((state) => ({
+              chatMessages: state.chatMessages.map((item) =>
+                item.id === assistantMessageId
+                  ? {
+                      ...item,
+                      status: "error",
+                      content: item.content || event.data.message,
+                    }
+                  : item,
+              ),
+              isGenerating: false,
+              agentRunState: "error",
+              notice: {
+                message: event.data.message,
+                tone: "error",
+              },
+            }));
+          },
+        },
+      );
+
+      activeRewriteStream = stream.close;
+    } catch (error) {
+      set((state) => ({
+        chatMessages: state.chatMessages.map((item) =>
+          item.id === assistantMessageId
+            ? {
+                ...item,
+                status: "error",
+                content: error instanceof Error ? error.message : "AI chat failed. Please retry.",
+              }
+            : item,
+        ),
+        isGenerating: false,
+        agentRunState: "error",
+        notice: {
+          message: error instanceof Error ? error.message : "AI chat failed. Please retry.",
+          tone: "error",
+        },
+      }));
     }
   },
 

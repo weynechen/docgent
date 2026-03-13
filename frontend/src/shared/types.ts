@@ -22,6 +22,37 @@ export interface EditRequest {
   instruction: string;
 }
 
+export interface AgentChatRequest {
+  sessionId: string;
+  docPath: string;
+  message: string;
+  history: AgentChatHistoryMessage[];
+  conversationId?: string;
+  selection?: SelectionContext;
+}
+
+export interface AgentChatHistoryMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+}
+
+export interface AgentChatMessage {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  status: "streaming" | "complete" | "error";
+  createdAt: number;
+}
+
+export interface AgentToolEvent {
+  id: string;
+  toolCallId: string;
+  toolName: string;
+  argsSummary: string;
+  resultSummary?: string;
+  status: "running" | "complete";
+}
+
 export interface ProposedEdit {
   docPath: string;
   beforeMarkdown: string;
@@ -102,3 +133,90 @@ export type RewriteStreamEvent =
   | RewriteResultEvent
   | RewriteErrorEvent
   | RewriteDoneEvent;
+
+export interface AgentConversationCreatedEvent {
+  type: "conversation_created";
+  data: {
+    conversation_id: string;
+  };
+}
+
+export interface AgentUserPromptEvent {
+  type: "user_prompt";
+  data: {
+    content: string;
+  };
+}
+
+export interface AgentModelRequestStartEvent {
+  type: "model_request_start";
+  data: Record<string, never>;
+}
+
+export interface AgentTextDeltaEvent {
+  type: "text_delta";
+  data: {
+    content: string;
+  };
+}
+
+export interface AgentToolCallEvent {
+  type: "tool_call";
+  data: {
+    tool_name: string;
+    args: Record<string, unknown>;
+    tool_call_id: string;
+  };
+}
+
+export interface AgentToolResultEvent {
+  type: "tool_result";
+  data: {
+    tool_call_id: string;
+    content: string;
+    raw_content?: string;
+  };
+}
+
+export interface AgentWorkspaceFileUpdatedEvent {
+  type: "workspace_file_updated";
+  data: {
+    doc_path: string;
+    revision: number;
+    content: string;
+    last_saved_at: number;
+  };
+}
+
+export interface AgentFinalResultEvent {
+  type: "final_result";
+  data: {
+    output: string;
+  };
+}
+
+export interface AgentCompleteEvent {
+  type: "complete";
+  data: {
+    conversation_id?: string;
+  };
+}
+
+export interface AgentErrorEvent {
+  type: "error";
+  data: {
+    message: string;
+  };
+}
+
+export type AgentSocketEvent =
+  | AgentConversationCreatedEvent
+  | AgentUserPromptEvent
+  | AgentModelRequestStartEvent
+  | AgentTextDeltaEvent
+  | AgentToolCallEvent
+  | AgentToolResultEvent
+  | AgentWorkspaceFileUpdatedEvent
+  | AgentFinalResultEvent
+  | AgentCompleteEvent
+  | AgentErrorEvent;

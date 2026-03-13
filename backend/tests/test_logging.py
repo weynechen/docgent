@@ -28,8 +28,13 @@ def _read_json_lines(path: Path) -> list[dict[str, object]]:
     ]
 
 
+def _latest_run_dir(base_dir: Path) -> Path:
+    """Resolve the latest per-start log directory."""
+    return (base_dir / "latest").resolve()
+
+
 def test_setup_logging_writes_files(tmp_path: Path) -> None:
-    """The logging setup should create and write rotating log files."""
+    """The logging setup should create and write per-start log files."""
     original_dir = settings.LOG_DIR
 
     try:
@@ -41,8 +46,9 @@ def test_setup_logging_writes_files(tmp_path: Path) -> None:
         logger.error("error message")
         _flush_handlers()
 
-        app_log = tmp_path / settings.LOG_APP_FILE_NAME
-        error_log = tmp_path / settings.LOG_ERROR_FILE_NAME
+        latest_run_dir = _latest_run_dir(tmp_path)
+        app_log = latest_run_dir / settings.LOG_APP_FILE_NAME
+        error_log = latest_run_dir / settings.LOG_ERROR_FILE_NAME
 
         assert app_log.exists()
         assert error_log.exists()
@@ -53,6 +59,26 @@ def test_setup_logging_writes_files(tmp_path: Path) -> None:
         assert any(entry["message"] == "info message" for entry in app_entries)
         assert any(entry["message"] == "error message" for entry in error_entries)
         assert all("trace_id" in entry for entry in app_entries)
+    finally:
+        settings.LOG_DIR = original_dir
+        setup_logging(settings, force=True)
+
+
+def test_setup_logging_creates_new_run_directory_per_restart(tmp_path: Path) -> None:
+    """Each forced logging setup should create a fresh run directory."""
+    original_dir = settings.LOG_DIR
+
+    try:
+        settings.LOG_DIR = str(tmp_path)
+        setup_logging(settings, force=True)
+        first_run_dir = _latest_run_dir(tmp_path)
+
+        setup_logging(settings, force=True)
+        second_run_dir = _latest_run_dir(tmp_path)
+
+        assert first_run_dir != second_run_dir
+        assert first_run_dir.exists()
+        assert second_run_dir.exists()
     finally:
         settings.LOG_DIR = original_dir
         setup_logging(settings, force=True)
@@ -80,7 +106,7 @@ async def test_request_logs_include_request_id(client: AsyncClient, tmp_path: Pa
         assert response.status_code == 200
         assert response.headers["X-Request-ID"] == "req-test-123"
 
-        app_log = tmp_path / settings.LOG_APP_FILE_NAME
+        app_log = _latest_run_dir(tmp_path) / settings.LOG_APP_FILE_NAME
         entries = _read_json_lines(app_log)
         request_entry = next(
             entry for entry in entries if entry["event_name"] == "http.server.request.completed"

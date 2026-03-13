@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { useEditor } from "@tiptap/react";
 import {
   AlignLeft,
@@ -21,7 +21,6 @@ import {
 import { SimpleEditor, createSimpleEditorExtensions } from "@/components/tiptap-templates/simple/simple-editor";
 import { useWorkspaceStore } from "./store";
 import { docToMarkdown, markdownToDoc } from "../shared/markdown";
-import { DiffPreview } from "../ui/DiffPreview";
 
 const DEFAULT_LEFT_WIDTH = 250;
 const DEFAULT_RIGHT_WIDTH = 320;
@@ -36,8 +35,8 @@ function App() {
     activeDoc,
     activeDocPath,
     selection,
-    currentSuggestion,
-    agentStatusTrail,
+    chatMessages,
+    toolEvents,
     agentRunState,
     isGenerating,
     versions,
@@ -49,16 +48,15 @@ function App() {
     updateActiveDocContent,
     saveActiveDoc,
     setSelection,
-    clearSuggestion,
-    requestSuggestion,
-    applySuggestion,
-    rejectSuggestion,
+    sendChatMessage,
     createVersion,
     loadVersions,
     selectVersion,
   } = useWorkspaceStore();
   const [instruction, setInstruction] = useState("");
   const lastSerializedRef = useRef("");
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const shouldAutoScrollRef = useRef(true);
   const [leftWidth, setLeftWidth] = useState(DEFAULT_LEFT_WIDTH);
   const [rightWidth, setRightWidth] = useState(DEFAULT_RIGHT_WIDTH);
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
@@ -102,7 +100,6 @@ function App() {
       const { from, to } = instance.state.selection;
       if (from === to) {
         setSelection(undefined);
-        clearSuggestion();
         return;
       }
 
@@ -159,26 +156,41 @@ function App() {
     return () => window.removeEventListener("pointerup", handlePointerUp);
   }, []);
 
-  const handleRequestSuggestion = async (nextInstruction?: string) => {
-    const content = nextInstruction ?? instruction;
-    if (!content.trim()) {
+  useEffect(() => {
+    const container = chatScrollRef.current;
+    if (!container || !shouldAutoScrollRef.current) {
       return;
     }
 
-    setInstruction(content);
-    await requestSuggestion(content);
+    container.scrollTop = container.scrollHeight;
+  }, [chatMessages, toolEvents, isGenerating]);
+
+  const handleChatScroll = () => {
+    const container = chatScrollRef.current;
+    if (!container) {
+      return;
+    }
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    shouldAutoScrollRef.current = distanceFromBottom < 96;
   };
 
-  const handleApplySuggestion = async () => {
-    if (!currentSuggestion) {
+  const handleSendChat = async () => {
+    if (!instruction.trim()) {
       return;
     }
 
-    const applied = await applySuggestion();
+    const content = instruction;
+    setInstruction("");
+    await sendChatMessage(content);
+  };
 
-    if (applied) {
-      await createVersion("AI rewrite applied", "ai");
+  const handleInstructionKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter" || event.shiftKey) {
+      return;
     }
+
+    event.preventDefault();
+    void handleSendChat();
   };
 
   const startResize = (side: "left" | "right") => (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -428,7 +440,7 @@ function App() {
         <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-white/50">
           <div className="flex items-center gap-2">
             <Sparkles size={18} className="text-primary" />
-            <h3 className="text-sm font-bold uppercase tracking-tight">AI Rewrite</h3>
+            <h3 className="text-sm font-bold uppercase tracking-tight">AI Chat</h3>
           </div>
           <button
             className="text-slate-400 cursor-pointer hover:text-slate-600"
@@ -439,78 +451,61 @@ function App() {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
-          <div className="space-y-6">
-            {selection ? (
-              <div className="flex gap-3 justify-end">
-                <div className="max-w-[85%] bg-white border border-slate-200 shadow-sm p-3 rounded-xl rounded-tr-sm">
-                  <p className="text-xs text-slate-700 font-medium italic">"{selection.text}"</p>
-                  <p className="text-xs text-slate-500 mt-2">
-                    {instruction || "Make this clearer while preserving the original judgment."}
-                  </p>
-                </div>
+        <div
+          className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6"
+          onScroll={handleChatScroll}
+          ref={chatScrollRef}
+        >
+          <div className="space-y-4">
+            {chatMessages.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-white/80 p-4 text-xs text-slate-500">
+                Ask the agent to explain, search, inspect files, or update the active document. It can work with or without a selection.
               </div>
             ) : null}
 
-            {agentStatusTrail.length > 0 ? (
+            {chatMessages.map((message) => (
+              <div
+                className={message.role === "user" ? "flex justify-end" : "flex justify-start"}
+                key={message.id}
+              >
+                <div
+                  className={
+                    message.role === "user"
+                      ? "max-w-[88%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-xs text-white shadow-sm"
+                      : "max-w-[88%] rounded-2xl rounded-bl-sm border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 shadow-sm"
+                  }
+                >
+                  <p className="whitespace-pre-wrap leading-relaxed">
+                    {message.content || (message.status === "streaming" ? "Thinking..." : "")}
+                  </p>
+                  <p className="mt-2 text-[10px] opacity-70">
+                    {message.status === "streaming" ? "Streaming..." : new Date(message.createdAt).toLocaleTimeString()}
+                  </p>
+                </div>
+              </div>
+            ))}
+
+            {toolEvents.length > 0 ? (
               <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">Agent run</p>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">Tool activity</p>
                   <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-500">
                     {statusLabel}
                   </span>
                 </div>
-                <div className="mt-3 space-y-2">
-                  {agentStatusTrail.map((event, index) => (
-                    <div className="flex items-start gap-2 text-xs text-slate-600" key={`${event.runId}-${event.status}-${index}`}>
-                      <span className="mt-1 size-1.5 shrink-0 rounded-full bg-primary/60"></span>
-                      <div>
-                        <p className="font-medium text-slate-700">{event.status.replace(/_/g, " ")}</p>
-                        <p>{event.message}</p>
+                <div className="mt-3 space-y-3">
+                  {toolEvents.map((event) => (
+                    <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2" key={event.id}>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-semibold text-slate-700">{event.toolName}</p>
+                        <span className="text-[10px] text-slate-400">{event.status}</span>
                       </div>
+                      {event.argsSummary ? <p className="mt-1 text-[11px] text-slate-500">{event.argsSummary}</p> : null}
+                      {event.resultSummary ? (
+                        <p className="mt-2 whitespace-pre-wrap text-[11px] text-slate-600">{event.resultSummary}</p>
+                      ) : null}
                     </div>
                   ))}
-                </div>
-              </div>
-            ) : null}
-
-            {currentSuggestion ? (
-              <div className="flex gap-3">
-                <div className="size-6 rounded bg-primary/10 flex items-center justify-center text-primary shrink-0 mt-0.5">
-                  <Sparkles size={14} />
-                </div>
-                <div className="flex-1 space-y-3">
-                  <p className="text-xs leading-relaxed text-slate-600">Here is a reviewable document candidate:</p>
-                  {currentSuggestion.proposedEdits[0] ? (
-                    <div className="rounded-lg border border-slate-200 bg-white p-3">
-                      <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">Diff preview</p>
-                      <DiffPreview
-                        original={currentSuggestion.proposedEdits[0].beforeMarkdown}
-                        suggested={currentSuggestion.proposedEdits[0].afterMarkdown}
-                      />
-                    </div>
-                  ) : null}
-                  {currentSuggestion.explanation ? (
-                    <p className="text-xs leading-relaxed text-slate-500">{currentSuggestion.explanation}</p>
-                  ) : null}
-                  {currentSuggestion.proposedEdits[0] ? (
-                    <p className="text-[11px] text-slate-400">
-                      {currentSuggestion.proposedEdits[0].changeSummary}
-                    </p>
-                  ) : null}
-                  {currentSuggestion.model ? (
-                    <p className="text-[11px] text-slate-400">
-                      {currentSuggestion.provider ?? "provider"} / {currentSuggestion.model}
-                    </p>
-                  ) : null}
-                  <div className="flex gap-3">
-                    <button className="text-[11px] font-bold text-primary hover:underline" onClick={() => void handleApplySuggestion()} type="button">
-                      Apply
-                    </button>
-                    <button className="text-[11px] font-bold text-slate-400 hover:underline" onClick={() => void rejectSuggestion()} type="button">
-                      Discard
-                    </button>
-                  </div>
                 </div>
               </div>
             ) : null}
@@ -529,7 +524,8 @@ function App() {
               <textarea
                 className="w-full p-3 text-xs bg-transparent border-none focus:outline-none focus:ring-0 resize-none placeholder:text-slate-400 min-h-[44px] max-h-32"
                 onChange={(event) => setInstruction(event.target.value)}
-                placeholder="Ask or type command..."
+                onKeyDown={handleInstructionKeyDown}
+                placeholder="Ask the agent to inspect, rewrite, search, or update..."
                 rows={1}
                 value={instruction}
               ></textarea>
@@ -544,8 +540,8 @@ function App() {
                 </div>
                 <button
                   className="bg-primary text-white p-1.5 rounded-lg hover:opacity-90 transition-opacity shadow-sm disabled:opacity-40"
-                  disabled={isGenerating || !selection}
-                  onClick={() => void handleRequestSuggestion()}
+                  disabled={isGenerating || !instruction.trim()}
+                  onClick={() => void handleSendChat()}
                   type="button"
                 >
                   <ArrowUp size={16} />
@@ -554,7 +550,7 @@ function App() {
             </div>
           </div>
           {isGenerating ? (
-            <p className="mt-2 text-[11px] text-slate-400">The backend workspace agent is running and will return a reviewable Markdown diff.</p>
+            <p className="mt-2 text-[11px] text-slate-400">The backend workspace agent is streaming a response and may read, search, or update the active document.</p>
           ) : null}
         </div>
           </aside>

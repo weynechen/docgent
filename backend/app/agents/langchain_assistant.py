@@ -58,12 +58,13 @@ class LangChainAssistant:
         model_name: str | None = None,
         temperature: float | None = None,
         system_prompt: str | None = None,
+        tools: list[Any] | None = None,
     ):
         self.model_name = model_name or settings.AI_MODEL
         self.temperature = temperature or settings.AI_TEMPERATURE
         self.system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
         self._agent = None
-        self._tools = [current_datetime]
+        self._tools = tools or [current_datetime]
 
     def _create_agent(self):
         """Create and configure the LangChain agent."""
@@ -71,6 +72,8 @@ class LangChainAssistant:
             model=self.model_name,
             temperature=self.temperature,
             api_key=settings.OPENAI_API_KEY,
+            base_url=settings.OPENAI_BASE_URL,
+            timeout=settings.AI_REQUEST_TIMEOUT_SECONDS,
         )
 
         agent = create_agent(
@@ -178,13 +181,17 @@ class LangChainAssistant:
             yield event
 
 
-def get_agent() -> LangChainAssistant:
+def get_agent(
+    *,
+    system_prompt: str | None = None,
+    tools: list[Any] | None = None,
+) -> LangChainAssistant:
     """Factory function to create a LangChainAssistant.
 
     Returns:
         Configured LangChainAssistant instance.
     """
-    return LangChainAssistant()
+    return LangChainAssistant(system_prompt=system_prompt, tools=tools)
 
 
 async def run_agent(

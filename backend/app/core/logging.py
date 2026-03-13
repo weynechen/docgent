@@ -5,7 +5,9 @@ from __future__ import annotations
 import contextvars
 import json
 import logging
+import os
 from contextlib import contextmanager
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from time import perf_counter
@@ -30,6 +32,37 @@ LOG_CONTEXT_DEFAULTS: dict[str, str | None] = {
 _log_context_vars: dict[str, contextvars.ContextVar[str | None]] = {
     key: contextvars.ContextVar(key, default=value) for key, value in LOG_CONTEXT_DEFAULTS.items()
 }
+_log_session_id: str | None = None
+
+
+def _build_log_session_id() -> str:
+    """Create a log session identifier for the current process start."""
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    return f"{timestamp}-{os.getpid()}"
+
+
+def _get_log_session_id(force: bool = False) -> str:
+    """Return the current log session ID."""
+    global _log_session_id
+    if force or _log_session_id is None:
+        _log_session_id = _build_log_session_id()
+    return _log_session_id
+
+
+def _prepare_log_paths(log_dir: Path, session_id: str) -> tuple[Path, Path, Path]:
+    """Create the per-start log directory and refresh the latest symlink."""
+    runs_dir = log_dir / "runs"
+    run_dir = runs_dir / session_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    latest_path = log_dir / "latest"
+    if latest_path.exists() or latest_path.is_symlink():
+        if latest_path.is_symlink() or latest_path.is_file():
+            latest_path.unlink()
+        else:
+            raise RuntimeError(f"Expected {latest_path} to be a symlink or file.")
+    latest_path.symlink_to(run_dir, target_is_directory=True)
+    return run_dir, run_dir / "app.log", run_dir / "error.log"
 
 
 def _fallback_trace_context() -> dict[str, str | None]:
@@ -203,6 +236,8 @@ def setup_logging(settings: Settings, *, force: bool = False) -> None:
     log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
     formatter = JsonFormatter(settings)
     context_filter = RequestContextFilter()
+    session_id = _get_log_session_id(force=force)
+    run_dir, app_log_path, error_log_path = _prepare_log_paths(log_dir, session_id)
 
     for handler in list(root_logger.handlers):
         root_logger.removeHandler(handler)
@@ -211,7 +246,7 @@ def setup_logging(settings: Settings, *, force: bool = False) -> None:
     root_logger.setLevel(log_level)
 
     app_handler = RotatingFileHandler(
-        filename=log_dir / settings.LOG_APP_FILE_NAME,
+        filename=app_log_path,
         maxBytes=settings.LOG_MAX_BYTES,
         backupCount=settings.LOG_BACKUP_COUNT,
         encoding="utf-8",
@@ -222,7 +257,7 @@ def setup_logging(settings: Settings, *, force: bool = False) -> None:
     root_logger.addHandler(app_handler)
 
     error_handler = RotatingFileHandler(
-        filename=log_dir / settings.LOG_ERROR_FILE_NAME,
+        filename=error_log_path,
         maxBytes=settings.LOG_MAX_BYTES,
         backupCount=settings.LOG_BACKUP_COUNT,
         encoding="utf-8",
@@ -244,6 +279,22 @@ def setup_logging(settings: Settings, *, force: bool = False) -> None:
         logger.handlers.clear()
         logger.propagate = True
 
+    root_logger.info(
+        "Logging configured",
+        extra={
+            "event_name": "application.logging.configured",
+            "attributes": {
+                "log_session_id": session_id,
+                "run_dir": str(run_dir),
+                "app_log_path": str(app_log_path),
+                "error_log_path": str(error_log_path),
+                "postgres_host": settings.POSTGRES_HOST,
+                "postgres_port": settings.POSTGRES_PORT,
+                "postgres_db": settings.POSTGRES_DB,
+                "openai_base_url": settings.OPENAI_BASE_URL,
+            },
+        },
+    )
     root_logger._docgent_logging_configured = True  # type: ignore[attr-defined]
 
 

@@ -46,7 +46,7 @@ class TestLangChainAssistant:
     def test_init_with_defaults(self):
         """Test LangChainAssistant initializes with defaults."""
         agent = LangChainAssistant()
-        assert agent.system_prompt == "You are a helpful assistant."
+        assert "writing and editing assistant" in agent.system_prompt
         assert agent._agent is None
 
     def test_init_with_custom_values(self):
@@ -68,6 +68,10 @@ class TestLangChainAssistant:
         agent = LangChainAssistant()
         _ = agent.agent
         assert agent._agent is not None
+        mock_chat.assert_called_once()
+        _, kwargs = mock_chat.call_args
+        assert kwargs["base_url"].startswith("http")
+        assert kwargs["timeout"] > 0
         mock_create_agent.assert_called_once()
 
     @patch("app.agents.langchain_assistant.ChatOpenAI")

@@ -3,7 +3,12 @@
 Centralized location for all agent prompts to make them easy to find and modify.
 """
 
-DEFAULT_SYSTEM_PROMPT = """You are a helpful assistant."""
+DEFAULT_SYSTEM_PROMPT = """You are a practical writing and editing assistant inside a docs-as-code workspace.
+
+Be concise, concrete, and explicit about what you changed.
+When the task requires reading or modifying project files, use the available workspace tools instead of guessing.
+Prefer edits that stay aligned with the user's document and instruction.
+"""
 
 REWRITE_SELECTION_SYSTEM_PROMPT = """You are a precise writing rewrite agent inside a docs-as-code editor.
 
@@ -17,3 +22,26 @@ updated_markdown must contain the full updated Markdown document.
 explanation should be short and should describe why the rewrite is better.
 change_summary should be a short one-line summary suitable for a diff panel.
 Return valid JSON only."""
+
+
+def build_workspace_chat_system_prompt(
+    *,
+    active_doc_path: str,
+    selection_text: str | None = None,
+) -> str:
+    """Build a system prompt for the workspace-aware chat agent."""
+
+    selection_block = (
+        f"Current selection context:\n{selection_text}\n"
+        if selection_text and selection_text.strip()
+        else "There is no active text selection. Decide yourself whether to read, search, answer, or edit.\n"
+    )
+
+    return (
+        DEFAULT_SYSTEM_PROMPT
+        + "\n"
+        + f"The active document path is: {active_doc_path}.\n"
+        + "You can use Read, Write, Glob, Grep, and WebSearch when needed.\n"
+        + "Use Write only when you have a concrete document update to apply.\n"
+        + selection_block
+    )

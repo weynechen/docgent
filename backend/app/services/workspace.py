@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import time
+import fnmatch
 from dataclasses import dataclass, field
 from pathlib import Path
 from tempfile import mkdtemp
@@ -111,6 +112,22 @@ class WorkspaceService:
 
         return WorkspaceTreeResponse(sessionId=session_id, entries=entries)
 
+    def glob_paths(self, session_id: str, pattern: str) -> list[str]:
+        """Return workspace-relative paths matching a glob pattern."""
+
+        session = self._get_session(session_id)
+        normalized_pattern = pattern or "**/*"
+        matches: list[str] = []
+
+        for path in sorted(session.root_path.rglob("*")):
+            relative_path = path.relative_to(session.root_path).as_posix()
+            if not relative_path:
+                continue
+            if fnmatch.fnmatch(relative_path, normalized_pattern):
+                matches.append(relative_path)
+
+        return matches
+
     def read_file(self, session_id: str, doc_path: str) -> WorkspaceFileResponse:
         """Read a file from a workspace."""
 
@@ -165,6 +182,38 @@ class WorkspaceService:
                 code="INVALID_SELECTION_RANGE",
             )
         return plain_text[start:end]
+
+    def grep(self, session_id: str, query: str, pattern: str = "**/*") -> list[dict[str, str | int]]:
+        """Search matching workspace files for lines containing the query."""
+
+        if not query.strip():
+            raise BadRequestError(message="grep query must not be empty.", code="EMPTY_GREP_QUERY")
+
+        session = self._get_session(session_id)
+        results: list[dict[str, str | int]] = []
+
+        for relative_path in self.glob_paths(session_id, pattern):
+            file_path = self._resolve_file_path(session, relative_path)
+            if not file_path.is_file():
+                continue
+
+            try:
+                content = file_path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                continue
+
+            for line_number, line in enumerate(content.splitlines(), start=1):
+                if query.lower() not in line.lower():
+                    continue
+                results.append(
+                    {
+                        "path": relative_path,
+                        "line_number": line_number,
+                        "line": line.strip(),
+                    }
+                )
+
+        return results
 
     def dispose_workspace(self, session_id: str) -> None:
         """Delete a temporary workspace and its files."""
