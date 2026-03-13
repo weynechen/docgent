@@ -44,6 +44,7 @@ Optional local backend variables:
 - `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
 - `SECRET_KEY`
 - `CORS_ORIGINS`
+- `LOG_LEVEL`, `LOG_DIR`, `LOG_MAX_BYTES`, `LOG_BACKUP_COUNT`
 
 ## Build
 
@@ -65,6 +66,8 @@ Useful commands:
 - `make test`
 - `make routes`
 - `uv run --project backend docgent_backend --version`
+
+Backend logs are written to `logs/` at the repository root by default. The folder is git-ignored and keeps rolling `app.log` and `error.log` files in JSON-lines format so issues can be inspected directly from the workspace and later shipped to centralized observability systems.
 
 ## Documentation
 

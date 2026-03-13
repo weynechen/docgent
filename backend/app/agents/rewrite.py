@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+from time import perf_counter
 from uuid import uuid4
 
 from langchain_openai import ChatOpenAI
@@ -10,9 +12,11 @@ from pydantic import BaseModel, Field
 from app.agents.prompts import REWRITE_SELECTION_SYSTEM_PROMPT
 from app.core.config import settings
 from app.core.exceptions import ExternalServiceError
+from app.core.logging import log_event
 from app.schemas.rewrite import RewriteRequest, RewriteSuggestion
 
 MAX_CONTEXT_CHARS = 280
+logger = logging.getLogger(__name__)
 
 
 class RewriteModelOutput(BaseModel):
@@ -79,11 +83,32 @@ class RewriteSelectionAgent:
             )
 
         runnable = self.model.with_structured_output(RewriteModelOutput)
+        started_at = perf_counter()
+        log_event(
+            logger,
+            logging.INFO,
+            "ai.rewrite.model_invocation.started",
+            "Rewrite model invocation started",
+            provider=settings.LLM_PROVIDER,
+            model=settings.AI_MODEL,
+            doc_path=request.doc_path,
+        )
         result = await runnable.ainvoke(
             [
                 ("system", REWRITE_SELECTION_SYSTEM_PROMPT),
                 ("user", build_rewrite_prompt(request)),
             ]
+        )
+        duration_ms = round((perf_counter() - started_at) * 1000, 2)
+        log_event(
+            logger,
+            logging.INFO,
+            "ai.rewrite.model_invocation.completed",
+            "Rewrite model invocation completed",
+            provider=settings.LLM_PROVIDER,
+            model=settings.AI_MODEL,
+            duration_ms=duration_ms,
+            selected_text_length=len(request.selected_text),
         )
 
         return RewriteSuggestion(

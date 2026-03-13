@@ -6,10 +6,11 @@ Dependency injection factories for services, repositories, and authentication.
 
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import OAuth2PasswordBearer
 
 from app.core.config import settings
+from app.core.logging import set_log_context
 from app.db.session import get_db_session
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -71,6 +72,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login
 
 
 async def get_current_user(
+    request: Request,
     token: Annotated[str, Depends(oauth2_scheme)],
     user_service: UserSvc,
 ) -> User:
@@ -101,6 +103,8 @@ async def get_current_user(
     if not user.is_active:
         raise AuthenticationError(message="User account is disabled")
 
+    request.state.user_id = str(user.id)
+    set_log_context(user_id=str(user.id))
     return user
 
 

@@ -1,29 +1,10 @@
 """Application middleware."""
 
 from typing import ClassVar
-from uuid import uuid4
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
-
-
-class RequestIDMiddleware(BaseHTTPMiddleware):
-    """Middleware that adds a unique request ID to each request.
-
-    The request ID is taken from the X-Request-ID header if present,
-    otherwise a new UUID is generated. The ID is added to the response
-    headers and is available in request.state.request_id.
-    """
-
-    async def dispatch(self, request: Request, call_next) -> Response:
-        """Add request ID to request state and response headers."""
-        request_id = request.headers.get("X-Request-ID", str(uuid4()))
-        request.state.request_id = request_id
-
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = request_id
-        return response
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):

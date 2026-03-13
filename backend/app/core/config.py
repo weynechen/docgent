@@ -18,6 +18,11 @@ def find_env_file() -> Path | None:
     return None
 
 
+def get_repo_root() -> Path:
+    """Return the repository root directory."""
+    return Path(__file__).resolve().parents[3]
+
+
 class Settings(BaseSettings):
     """Application settings."""
 
@@ -32,6 +37,15 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     DEBUG: bool = False
     ENVIRONMENT: Literal["development", "local", "staging", "production"] = "local"
+
+    # === Logging ===
+    LOG_LEVEL: str = "INFO"
+    LOG_DIR: str = str(get_repo_root() / "logs")
+    LOG_APP_FILE_NAME: str = "app.log"
+    LOG_ERROR_FILE_NAME: str = "error.log"
+    LOG_MAX_BYTES: int = 10 * 1024 * 1024
+    LOG_BACKUP_COUNT: int = 5
+    LOG_TO_STDOUT: bool = True
 
     # === Database (PostgreSQL async) ===
     POSTGRES_HOST: str = "localhost"
@@ -126,6 +140,12 @@ class Settings(BaseSettings):
                 "CORS_ORIGINS cannot contain '*' in production! Specify explicit allowed origins."
             )
         return v
+
+    @field_validator("LOG_LEVEL")
+    @classmethod
+    def validate_log_level(cls, v: str) -> str:
+        """Normalize the configured log level."""
+        return v.upper()
 
 
 settings = Settings()

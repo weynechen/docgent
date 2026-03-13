@@ -10,7 +10,9 @@ from fastapi_pagination import add_pagination
 from app.api.exception_handlers import register_exception_handlers
 from app.api.router import api_router
 from app.core.config import settings
-from app.core.middleware import RequestIDMiddleware
+from app.core.logging import RequestContextMiddleware, setup_logging
+
+setup_logging(settings)
 
 
 @asynccontextmanager
@@ -116,8 +118,8 @@ Docgent backend service
         default_response_class=ORJSONResponse,
     )
 
-    # Request ID middleware (for request correlation/debugging)
-    app.add_middleware(RequestIDMiddleware)
+    # Request context middleware (for correlation/debugging)
+    app.add_middleware(RequestContextMiddleware)
 
     # Exception handlers
     register_exception_handlers(app)

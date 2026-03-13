@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
@@ -14,6 +15,7 @@ from fastapi.encoders import jsonable_encoder
 
 from app.agents.rewrite import RewriteSelectionAgent
 from app.core.exceptions import BadRequestError
+from app.core.logging import bind_log_context, get_log_context, log_event
 from app.schemas.rewrite import (
     RewriteDoneEvent,
     RewriteErrorEvent,
@@ -27,6 +29,7 @@ from app.schemas.rewrite import (
 
 RUN_TTL_SECONDS = 5 * 60
 STREAM_HEARTBEAT_SECONDS = 10
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -38,6 +41,7 @@ class RewriteRun:
     listeners: set[asyncio.Queue[RewriteStreamEvent | None]] = field(default_factory=set)
     finished: bool = False
     cleanup_handle: asyncio.TimerHandle | None = None
+    log_context: dict[str, str | None] = field(default_factory=dict)
 
 
 class RewriteRunService:
@@ -54,7 +58,18 @@ class RewriteRunService:
             raise BadRequestError(message="selectedText must not be empty")
 
         run_id = str(uuid4())
-        self._runs[run_id] = RewriteRun(id=run_id)
+        self._runs[run_id] = RewriteRun(id=run_id, log_context=get_log_context())
+        log_event(
+            logger,
+            logging.INFO,
+            "rewrite.run.accepted",
+            "Rewrite run accepted",
+            run_id=run_id,
+            doc_path=request.doc_path,
+            instruction_length=len(request.instruction),
+            selected_text_length=len(request.selected_text),
+            target_platform=request.target_platform,
+        )
         return RewriteRunResponse(
             requestId=run_id,
             streamPath=f"{api_prefix}/ai/rewrite/{run_id}/events",
@@ -66,45 +81,74 @@ class RewriteRunService:
         return run_id in self._runs
 
     async def process_run(self, run_id: str, request: RewriteRequest) -> None:
-        try:
-            self._publish_status(
-                run_id,
-                "collecting_context",
-                "Collecting the selected passage and nearby context.",
-            )
-            self._publish_status(
-                run_id,
-                "rewriting",
-                "The rewrite agent is generating and checking a candidate revision.",
-            )
-            suggestion = await self._agent.rewrite(request)
-            suggestion.created_at = _now_ms()
-            self._publish_status(
-                run_id,
-                "finalizing",
-                "Preparing the final suggestion for review.",
-            )
-            self._publish(
-                run_id,
-                RewriteResultEvent(
-                    runId=run_id,
-                    suggestion=suggestion,
-                    createdAt=_now_ms(),
-                ),
-            )
-            self._publish(run_id, RewriteDoneEvent(runId=run_id, createdAt=_now_ms()))
-        except Exception as exc:
-            message = str(exc) or "Unknown rewrite error."
-            code = getattr(exc, "code", "REWRITE_FAILED")
-            self._publish(
-                run_id,
-                RewriteErrorEvent(
-                    runId=run_id,
-                    code=str(code).lower(),
-                    message=message,
-                    createdAt=_now_ms(),
-                ),
-            )
+        run = self._runs[run_id]
+        with bind_log_context(**run.log_context):
+            try:
+                log_event(
+                    logger,
+                    logging.INFO,
+                    "rewrite.run.started",
+                    "Rewrite processing started",
+                    run_id=run_id,
+                    doc_path=request.doc_path,
+                )
+                self._publish_status(
+                    run_id,
+                    "collecting_context",
+                    "Collecting the selected passage and nearby context.",
+                )
+                self._publish_status(
+                    run_id,
+                    "rewriting",
+                    "The rewrite agent is generating and checking a candidate revision.",
+                )
+                suggestion = await self._agent.rewrite(request)
+                suggestion.created_at = _now_ms()
+                self._publish_status(
+                    run_id,
+                    "finalizing",
+                    "Preparing the final suggestion for review.",
+                )
+                self._publish(
+                    run_id,
+                    RewriteResultEvent(
+                        runId=run_id,
+                        suggestion=suggestion,
+                        createdAt=_now_ms(),
+                    ),
+                )
+                self._publish(run_id, RewriteDoneEvent(runId=run_id, createdAt=_now_ms()))
+                log_event(
+                    logger,
+                    logging.INFO,
+                    "rewrite.run.completed",
+                    "Rewrite processing completed",
+                    run_id=run_id,
+                    suggestion_id=suggestion.id,
+                    provider=suggestion.provider,
+                    model=suggestion.model,
+                )
+            except Exception as exc:
+                message = str(exc) or "Unknown rewrite error."
+                code = getattr(exc, "code", "REWRITE_FAILED")
+                self._publish(
+                    run_id,
+                    RewriteErrorEvent(
+                        runId=run_id,
+                        code=str(code).lower(),
+                        message=message,
+                        createdAt=_now_ms(),
+                    ),
+                )
+                log_event(
+                    logger,
+                    logging.ERROR,
+                    "rewrite.run.failed",
+                    "Rewrite processing failed",
+                    run_id=run_id,
+                    error_code=str(code).lower(),
+                    exception_type=type(exc).__name__,
+                )
 
     async def stream_events(self, run_id: str) -> AsyncIterator[str]:
         """Yield SSE-formatted events for a run, including replay."""
@@ -138,6 +182,14 @@ class RewriteRunService:
             run.listeners.discard(queue)
 
     def _publish_status(self, run_id: str, status: RewriteStatus, message: str) -> None:
+        log_event(
+            logger,
+            logging.INFO,
+            "rewrite.run.status_updated",
+            "Rewrite status updated",
+            run_id=run_id,
+            status=status,
+        )
         self._publish(
             run_id,
             RewriteStatusEvent(
@@ -167,6 +219,14 @@ class RewriteRunService:
 
         loop = asyncio.get_running_loop()
         run.cleanup_handle = loop.call_later(RUN_TTL_SECONDS, self._runs.pop, run.id, None)
+        log_event(
+            logger,
+            logging.INFO,
+            "rewrite.run.cleanup_scheduled",
+            "Rewrite cleanup scheduled",
+            run_id=run.id,
+            ttl_seconds=RUN_TTL_SECONDS,
+        )
 
 
 def _now_ms() -> int:
