@@ -58,8 +58,10 @@ export async function startRewriteSelectionRun(
 
   const { requestId } = (await response.json()) as RewriteRunResponse;
   const eventSource = new EventSource(`/api/v1/ai/rewrite/${requestId}/events`);
+  let settled = false;
 
   const close = () => {
+    settled = true;
     eventSource.close();
   };
 
@@ -99,10 +101,12 @@ export async function startRewriteSelectionRun(
         handlers.onResult?.(parsed);
         break;
       case "error":
+        settled = true;
         handlers.onError?.(parsed);
         close();
         break;
       case "done":
+        settled = true;
         handlers.onDone?.(parsed);
         close();
         break;
@@ -110,6 +114,10 @@ export async function startRewriteSelectionRun(
   };
 
   eventSource.onerror = () => {
+    if (settled) {
+      return;
+    }
+
     handlers.onError?.({
       type: "error",
       runId: requestId,

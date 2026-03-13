@@ -65,6 +65,8 @@ class RewriteSelectionAgent:
             temperature=0.3,
             api_key=settings.OPENAI_API_KEY or None,
             base_url=settings.OPENAI_BASE_URL,
+            timeout=settings.AI_REQUEST_TIMEOUT_SECONDS,
+            max_retries=1,
         )
 
     async def rewrite(self, request: RewriteRequest) -> RewriteSuggestion:

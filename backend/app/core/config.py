@@ -95,6 +95,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     AI_MODEL: str = "gpt-4o-mini"
     AI_TEMPERATURE: float = 0.7
+    AI_REQUEST_TIMEOUT_SECONDS: float = 60.0
     AI_FRAMEWORK: str = "langchain"
     LLM_PROVIDER: str = "openai"
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"

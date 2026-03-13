@@ -26,6 +26,7 @@ from app.schemas.rewrite import (
 )
 
 RUN_TTL_SECONDS = 5 * 60
+STREAM_HEARTBEAT_SECONDS = 10
 
 
 @dataclass
@@ -123,7 +124,11 @@ class RewriteRunService:
                 return
 
             while True:
-                event = await queue.get()
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=STREAM_HEARTBEAT_SECONDS)
+                except TimeoutError:
+                    yield ": heartbeat\n\n"
+                    continue
                 if event is None:
                     return
                 yield _encode_sse_event(event)
