@@ -14,6 +14,8 @@
 
 当前仓库的 AI 主线已经切换到 `backend` 中的 Python FastAPI + LangChain 实现。
 
+当前正在推进的下一阶段，是把右侧 AI 面板从“单次选区改写入口”升级为“会话式 agentic chat + workspace tools + 流式执行”的统一运行面。
+
 ## 分层
 
 ### 前端工作区
@@ -21,7 +23,7 @@
 - `frontend/src/app/App.tsx`
   - 负责工作台布局、侧栏折叠/拖拽、标签栏、状态栏和跨区域交互编排。
 - `frontend/src/app/store.ts`
-  - 负责远程工作区状态、AI 候选状态、版本列表、通知与整文保存。
+  - 负责远程工作区状态、AI 会话状态、候选状态、版本列表、通知与整文保存。
 
 ### 前端领域与表达层
 
@@ -29,7 +31,7 @@
   - `documentStore.ts`：后端工作区文档读取/保存接口
   - `versionStore.ts`：版本快照接口与 localStorage 实现
 - `frontend/src/ai/`
-  - `provider.ts`：前端 AI provider，负责启动改写请求并订阅 SSE 事件
+  - `provider.ts`：前端 AI provider，负责启动 rewrite / chat 请求并订阅 SSE 事件
 - `frontend/src/shared/`
   - `markdown.ts`：Markdown 与编辑器内容的转换
   - `types.ts`：领域实体、改写流事件与版本定义
@@ -41,7 +43,7 @@
 - `backend/app/api`
   - FastAPI 路由、依赖注入、异常处理与版本化入口
 - `backend/app/services`
-  - 负责认证、用户、会话、workspace、rewrite run 等应用服务
+  - 负责认证、用户、会话、workspace、rewrite run、agent run 等应用服务
 - `backend/app/repositories`
   - 负责数据库访问
 - `backend/app/agents`
@@ -66,6 +68,12 @@
 - `backend/app/agents/rewrite.py`
   - 负责基于完整 Markdown 文档生成 reviewable candidate
 
+### 目标中的下一阶段 AI 路径
+
+- 右栏 AI Chat 将从单用途 rewrite endpoint 扩展到会话式 agent endpoint
+- agent runtime 将复用 `backend/app/agents` 下的 LangChain 能力，并新增 workspace-scoped tools
+- 事件流将从“单 run 状态 + 最终候选”扩展到“消息增量 + 工具调用 + 写入结果 + 最终完成态”
+
 ### 编辑器 UI 层
 
 - `@/components/tiptap-templates/simple/`
@@ -80,12 +88,15 @@
 - 临时工作区是后端真相源，但仍是会话级临时目录，不是正式持久化存储
 - 版本系统是应用内快照，不是 Git
 - 当前 AI 改写已切换到模板化 Python backend；仍未接入持久化任务队列
+- 当前右栏 chat 仍未完成真正的多轮、流式与工具调用执行模型
 - 右栏 AI 面板与编辑器模板是集成关系，不是统一插件系统
 - `desktop` 仍是目标目录，占位多于实现
 
 ## 后续演进
 
-1. 将 rewrite run 从内存态扩展到可持久化或可恢复的任务模型。
-2. 在模板后端中继续接入文档、版本与用户域能力，而不是额外再迁一次模板。
-3. MVP 阶段继续使用日志观测，后续优先接模板现有的 LangChain 观测扩展点。
-4. 在 `desktop` 中实现仅连接远端 API 的桌面壳。
+1. 将右侧 AI 能力从 selection rewrite 扩展到会话式 agent run。
+2. 为 agent 接入 `Read`、`Write`、`Glob`、`Grep`、`WebSearch` 等 workspace-scoped tools。
+3. 将 rewrite run / agent run 从内存态扩展到可持久化或可恢复的任务模型。
+4. 在模板后端中继续接入文档、版本与用户域能力，而不是额外再迁一次模板。
+5. MVP 阶段继续使用日志观测，后续优先接模板现有的 LangChain 观测扩展点。
+6. 在 `desktop` 中实现仅连接远端 API 的桌面壳。

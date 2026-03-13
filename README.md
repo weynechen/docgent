@@ -12,11 +12,20 @@ Current repository structure:
 The current product surface implements:
 
 - three-panel writing workspace
+- right-side AI chat panel with agent-oriented upgrade in progress
 - selection-aware AI rewrite flow with status streaming, diff preview, and accept/reject
 - mock document store with multiple Markdown drafts
 - manual version snapshots, history diff, and restore
 - Markdown export preview from the current editor state
 - FastAPI rewrite backend at `/api/v1/ai/rewrite/*`
+
+The next active product track upgrades the right sidebar from a single-turn rewrite panel into an agentic chat surface with:
+
+- enter-to-send chat input
+- multi-turn conversation state
+- streaming assistant message updates
+- no-selection task execution over the current workspace
+- agent tools such as `Read`, `Write`, `Glob`, `Grep`, and `WebSearch`
 
 ## Development
 
@@ -74,3 +83,4 @@ Backend logs are written to `logs/` at the repository root by default. The folde
 - Chinese README: [docs/README_CN.md](docs/README_CN.md)
 - Docs hub: [docs/product-specs/index.md](docs/product-specs/index.md)
 - Design docs: [docs/design-docs/index.md](docs/design-docs/index.md)
+- Active execution plans: [docs/PLANS.md](docs/PLANS.md)

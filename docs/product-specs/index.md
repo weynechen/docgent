@@ -10,10 +10,13 @@
   - 当前 MVP 的完整产品规格
 - `editing-experience.md`
   - 当前编辑体验目标、交互边界和优化方向
+- `../exec-plans/active/agentic-chat-and-autonomous-editing.md`
+  - 当前右侧 AI Chat 与自主编辑能力执行主线
 
 ## 当前优先级
 
 1. 真正可编辑的正文体验
-2. 选区 AI 改写与应用稳定性
-3. 版本保存与恢复可靠性
-4. 后续才是本地文件、Git 和平台优化
+2. 右侧 AI Chat 的多轮、流式与 agentic 工作流
+3. 无选区任务、自主读写和工具调用边界
+4. 版本保存与恢复可靠性
+5. 后续才是本地文件、Git 和平台优化
