@@ -11,6 +11,14 @@ interface RewriteRunResponse {
   requestId: string;
 }
 
+interface RewriteApplyResponse {
+  runId: string;
+  docPath: string;
+  revision: number;
+  content: string;
+  appliedAt: number;
+}
+
 interface RewriteStreamHandlers {
   onStatus?: (event: RewriteStatusEvent) => void;
   onResult?: (event: RewriteResultEvent) => void;
@@ -32,11 +40,21 @@ function isRewriteStreamEvent(value: unknown): value is RewriteStreamEvent {
   );
 }
 
+async function parseError(response: Response, fallback: string) {
+  try {
+    const payload = (await response.json()) as { error?: { message?: string } };
+    return payload.error?.message || fallback;
+  } catch {
+    const text = await response.text();
+    return text || fallback;
+  }
+}
+
 export async function startRewriteSelectionRun(
   input: EditRequest,
   handlers: RewriteStreamHandlers,
-): Promise<() => void> {
-  const response = await fetch("/api/v1/ai/rewrite/runs", {
+): Promise<{ runId: string; close: () => void }> {
+  const response = await fetch(`/api/v1/workspaces/${input.sessionId}/agent/runs`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -45,19 +63,11 @@ export async function startRewriteSelectionRun(
   });
 
   if (!response.ok) {
-    let message = "Failed to start rewrite request.";
-    try {
-      const payload = (await response.json()) as { error?: { message?: string } };
-      message = payload.error?.message || message;
-    } catch {
-      const text = await response.text();
-      message = text || message;
-    }
-    throw new Error(message);
+    throw new Error(await parseError(response, "Failed to start rewrite request."));
   }
 
   const { requestId } = (await response.json()) as RewriteRunResponse;
-  const eventSource = new EventSource(`/api/v1/ai/rewrite/${requestId}/events`);
+  const eventSource = new EventSource(`/api/v1/workspaces/${input.sessionId}/agent/runs/${requestId}/events`);
   let settled = false;
 
   const close = () => {
@@ -128,5 +138,24 @@ export async function startRewriteSelectionRun(
     close();
   };
 
-  return close;
+  return { runId: requestId, close };
+}
+
+export async function applyRewriteRun(sessionId: string, runId: string): Promise<RewriteApplyResponse> {
+  const response = await fetch(`/api/v1/workspaces/${sessionId}/agent/runs/${runId}/apply`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw new Error(await parseError(response, "Failed to apply rewrite suggestion."));
+  }
+  return (await response.json()) as RewriteApplyResponse;
+}
+
+export async function discardRewriteRun(sessionId: string, runId: string): Promise<void> {
+  const response = await fetch(`/api/v1/workspaces/${sessionId}/agent/runs/${runId}/discard`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw new Error(await parseError(response, "Failed to discard rewrite suggestion."));
+  }
 }

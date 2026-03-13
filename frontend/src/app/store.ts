@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import { startRewriteSelectionRun } from "../ai/provider";
-import { mockDocumentStore } from "../documents/documentStore";
+import { applyRewriteRun, discardRewriteRun, startRewriteSelectionRun } from "../ai/provider";
+import { remoteDocumentStore } from "../documents/documentStore";
 import { localVersionStore } from "../documents/versionStore";
 import type {
   AppliedChange,
@@ -19,11 +19,13 @@ interface Notice {
 }
 
 interface WorkspaceState {
+  sessionId?: string;
   docs: DocFile[];
   activeDocPath?: string;
   activeDoc?: DocFile;
   selection?: SelectionContext;
   currentSuggestion?: EditSuggestion;
+  activeRunId?: string;
   agentStatusTrail: RewriteStatusEvent[];
   agentRunState: "idle" | "running" | "complete" | "error";
   isGenerating: boolean;
@@ -38,10 +40,8 @@ interface WorkspaceState {
   setSelection: (selection?: SelectionContext) => void;
   clearSuggestion: () => void;
   requestSuggestion: (instruction: string) => Promise<void>;
-  applySuggestion: (
-    updater: (args: { from: number; to: number; text: string }) => boolean,
-  ) => Promise<boolean>;
-  rejectSuggestion: () => void;
+  applySuggestion: () => Promise<boolean>;
+  rejectSuggestion: () => Promise<void>;
   createVersion: (title?: string, source?: "manual" | "ai") => Promise<void>;
   loadVersions: (docPath?: string) => Promise<void>;
   selectVersion: (versionId?: string) => void;
@@ -67,10 +67,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   versions: [],
 
   async loadWorkspace() {
-    const docs = await mockDocumentStore.listDocs();
+    const sessionId = await remoteDocumentStore.getSessionId();
+    const docs = await remoteDocumentStore.listDocs();
     const activeDoc = docs[0];
     const versions = activeDoc ? await localVersionStore.listVersions(activeDoc.path) : [];
     set({
+      sessionId,
       docs,
       activeDocPath: activeDoc?.path,
       activeDoc,
@@ -80,19 +82,22 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   async setActiveDoc(path) {
     closeActiveRewriteStream();
-    const activeDoc = await mockDocumentStore.openDoc(path);
+    const activeDoc = await remoteDocumentStore.openDoc(path);
     const versions = await localVersionStore.listVersions(path);
-    set({
+    set((state) => ({
+      sessionId: state.sessionId,
       activeDocPath: path,
       activeDoc,
+      docs: state.docs.map((doc) => (doc.path === activeDoc.path ? activeDoc : doc)),
       versions,
       selection: undefined,
       currentSuggestion: undefined,
+      activeRunId: undefined,
       agentStatusTrail: [],
       agentRunState: "idle",
       isGenerating: false,
       selectedVersionId: undefined,
-    });
+    }));
   },
 
   updateActiveDocContent(content) {
@@ -120,27 +125,28 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       return;
     }
 
-    await mockDocumentStore.saveDoc(activeDoc.path, activeDoc.content);
-    set((state) => {
-      if (!state.activeDoc) {
-        return state;
-      }
-
-      const savedDoc = {
-        ...state.activeDoc,
-        isDirty: false,
-        lastSavedAt: Date.now(),
-      };
-
-      return {
+    try {
+      const savedDoc = await remoteDocumentStore.saveDoc(
+        activeDoc.path,
+        activeDoc.content,
+        activeDoc.revision,
+      );
+      set((state) => ({
         activeDoc: savedDoc,
         docs: state.docs.map((doc) => (doc.path === savedDoc.path ? savedDoc : doc)),
         notice: {
-          message: "Document saved.",
+          message: "Document saved to the backend workspace.",
           tone: "success",
         },
-      };
-    });
+      }));
+    } catch (error) {
+      set({
+        notice: {
+          message: error instanceof Error ? error.message : "Failed to save document.",
+          tone: "error",
+        },
+      });
+    }
   },
 
   setSelection(selection) {
@@ -148,6 +154,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     set({
       selection,
       currentSuggestion: undefined,
+      activeRunId: undefined,
       agentStatusTrail: [],
       agentRunState: "idle",
       isGenerating: false,
@@ -158,6 +165,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     closeActiveRewriteStream();
     set({
       currentSuggestion: undefined,
+      activeRunId: undefined,
       agentStatusTrail: [],
       agentRunState: "idle",
       isGenerating: false,
@@ -165,8 +173,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   async requestSuggestion(instruction) {
-    const { activeDoc, selection } = get();
-    if (!activeDoc || !selection?.text.trim()) {
+    const { activeDoc, selection, sessionId } = get();
+    if (!activeDoc || !selection?.text.trim() || !sessionId) {
       set({
         notice: {
           message: "Select a passage before asking AI to rewrite it.",
@@ -181,120 +189,138 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       isGenerating: true,
       notice: undefined,
       currentSuggestion: undefined,
+      activeRunId: undefined,
       agentStatusTrail: [],
       agentRunState: "running",
     });
 
     try {
-      activeRewriteStream = await startRewriteSelectionRun({
-        docPath: activeDoc.path,
-        selectedText: selection.text,
-        instruction,
-        documentTitle: activeDoc.name,
-        beforeText: selection.beforeText,
-        afterText: selection.afterText,
-      }, {
-        onStatus: (event) => {
-          set((state) => ({
-            agentStatusTrail: [...state.agentStatusTrail, event],
-            agentRunState: "running",
-          }));
+      const stream = await startRewriteSelectionRun(
+        {
+          sessionId,
+          docPath: activeDoc.path,
+          selectionStart: selection.start,
+          selectionEnd: selection.end,
+          instruction,
         },
-        onResult: (event) => {
-          set(() => ({
-            currentSuggestion: {
-              ...event.suggestion,
-              statusTrail: get().agentStatusTrail.map((item) => item.status),
-            },
-            isGenerating: false,
-            agentRunState: "complete",
-          }));
+        {
+          onStatus: (event) => {
+            set((state) => ({
+              agentStatusTrail: [...state.agentStatusTrail, event],
+              agentRunState: "running",
+            }));
+          },
+          onResult: (event) => {
+            set(() => ({
+              currentSuggestion: {
+                ...event.suggestion,
+                statusTrail: get().agentStatusTrail.map((item) => item.status),
+              },
+              isGenerating: false,
+              agentRunState: "complete",
+            }));
+          },
+          onError: (event) => {
+            closeActiveRewriteStream();
+            set({
+              isGenerating: false,
+              agentRunState: "error",
+              notice: {
+                message: event.message,
+                tone: "error",
+              },
+            });
+          },
+          onDone: () => {
+            closeActiveRewriteStream();
+            set((state) => ({
+              isGenerating: false,
+              agentRunState: state.currentSuggestion ? "complete" : state.agentRunState,
+            }));
+          },
         },
-        onError: (event) => {
-          closeActiveRewriteStream();
-          set({
-            isGenerating: false,
-            agentRunState: "error",
-            notice: {
-              message: event.message,
-              tone: "error",
-            },
-          });
-        },
-        onDone: () => {
-          closeActiveRewriteStream();
-          set((state) => ({
-            isGenerating: false,
-            agentRunState: state.currentSuggestion ? "complete" : state.agentRunState,
-          }));
-        },
-      });
-    } catch {
+      );
+
+      activeRewriteStream = stream.close;
+      set({ activeRunId: stream.runId });
+    } catch (error) {
       set({
         isGenerating: false,
         agentRunState: "error",
         notice: {
-          message: "AI rewrite failed. Please retry.",
+          message: error instanceof Error ? error.message : "AI rewrite failed. Please retry.",
           tone: "error",
         },
       });
     }
   },
 
-  async applySuggestion(updater) {
-    const { activeDoc, selection, currentSuggestion } = get();
-    if (!activeDoc || !selection || !currentSuggestion) {
+  async applySuggestion() {
+    const { activeDoc, currentSuggestion, activeRunId, sessionId } = get();
+    if (!activeDoc || !currentSuggestion || !activeRunId || !sessionId) {
       return false;
     }
 
-    const applied = updater({
-      from: selection.from,
-      to: selection.to,
-      text: currentSuggestion.suggestedText,
-    });
+    try {
+      const applied = await applyRewriteRun(sessionId, activeRunId);
+      closeActiveRewriteStream();
 
-    if (!applied) {
-      set({
-        notice: {
-          message: "Unable to apply the current suggestion.",
-          tone: "error",
-        },
-      });
-      return false;
-    }
+      const updatedDoc: DocFile = {
+        ...activeDoc,
+        content: applied.content,
+        revision: applied.revision,
+        isDirty: false,
+        lastSavedAt: applied.appliedAt,
+      };
 
-    closeActiveRewriteStream();
-    set(() => {
-      return {
+      set((state) => ({
+        activeDoc: updatedDoc,
+        docs: state.docs.map((doc) => (doc.path === updatedDoc.path ? updatedDoc : doc)),
         lastAppliedChange: {
           suggestionId: currentSuggestion.id,
-          docPath: activeDoc.path,
-          originalText: selection.text,
-          appliedText: currentSuggestion.suggestedText,
-          appliedAt: Date.now(),
+          docPath: updatedDoc.path,
+          originalText: currentSuggestion.proposedEdits[0]?.beforeMarkdown ?? activeDoc.content,
+          appliedText: updatedDoc.content,
+          appliedAt: applied.appliedAt,
         },
         currentSuggestion: undefined,
-        selection: {
-          ...selection,
-          text: currentSuggestion.suggestedText,
-          to: selection.from + currentSuggestion.suggestedText.length,
-        },
+        activeRunId: undefined,
+        selection: undefined,
         agentStatusTrail: [],
         agentRunState: "idle",
         notice: {
-          message: "AI suggestion applied.",
+          message: "AI suggestion applied to the backend workspace.",
           tone: "success",
         },
-      };
-    });
+      }));
 
-    return true;
+      return true;
+    } catch (error) {
+      set({
+        notice: {
+          message: error instanceof Error ? error.message : "Unable to apply the current suggestion.",
+          tone: "error",
+        },
+      });
+      return false;
+    }
   },
 
-  rejectSuggestion() {
+  async rejectSuggestion() {
+    const { activeRunId, sessionId } = get();
     closeActiveRewriteStream();
+
+    if (activeRunId && sessionId) {
+      try {
+        await discardRewriteRun(sessionId, activeRunId);
+      } catch {
+        // Ignore discard failures in the MVP client; the backend will clean up the run.
+      }
+    }
+
     set({
       currentSuggestion: undefined,
+      activeRunId: undefined,
       agentStatusTrail: [],
       agentRunState: "idle",
       isGenerating: false,
@@ -366,6 +392,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         activeDoc: updatedDoc,
         docs: state.docs.map((doc) => (doc.path === updatedDoc.path ? updatedDoc : doc)),
         currentSuggestion: undefined,
+        activeRunId: undefined,
         selection: undefined,
         agentStatusTrail: [],
         agentRunState: "idle",

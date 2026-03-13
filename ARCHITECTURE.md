@@ -21,12 +21,12 @@
 - `frontend/src/app/App.tsx`
   - 负责工作台布局、侧栏折叠/拖拽、标签栏、状态栏和跨区域交互编排。
 - `frontend/src/app/store.ts`
-  - 负责工作区状态、AI 建议状态、版本列表、通知与文档保存。
+  - 负责远程工作区状态、AI 候选状态、版本列表、通知与整文保存。
 
 ### 前端领域与表达层
 
 - `frontend/src/documents/`
-  - `documentStore.ts`：文档读取/保存接口与 mock 实现
+  - `documentStore.ts`：后端工作区文档读取/保存接口
   - `versionStore.ts`：版本快照接口与 localStorage 实现
 - `frontend/src/ai/`
   - `provider.ts`：前端 AI provider，负责启动改写请求并订阅 SSE 事件
@@ -41,7 +41,7 @@
 - `backend/app/api`
   - FastAPI 路由、依赖注入、异常处理与版本化入口
 - `backend/app/services`
-  - 负责认证、用户、会话、rewrite run 等应用服务
+  - 负责认证、用户、会话、workspace、rewrite run 等应用服务
 - `backend/app/repositories`
   - 负责数据库访问
 - `backend/app/agents`
@@ -57,12 +57,14 @@
 
 ### 已落地 AI 路径
 
-- `backend/app/api/routes/v1/rewrite.py`
-  - 提供选区改写 HTTP + SSE 接口
+- `backend/app/api/routes/v1/workspaces.py`
+  - 提供工作区创建、文件读取/保存、AI 改写 run、候选应用与 SSE 接口
+- `backend/app/services/workspace.py`
+  - 负责临时工作区文件树、revision 与文件读写
 - `backend/app/services/rewrite.py`
-  - 负责 run 注册、事件回放、状态流与内存态清理
+  - 负责 run 注册、事件回放、候选变更与应用
 - `backend/app/agents/rewrite.py`
-  - 负责 prompt 组装、上下文裁剪与 LangChain 模型调用
+  - 负责基于完整 Markdown 文档生成 reviewable candidate
 
 ### 编辑器 UI 层
 
@@ -75,7 +77,7 @@
 
 ## 当前边界
 
-- 文档存储仍是 mock/in-memory，不是本地文件系统
+- 临时工作区是后端真相源，但仍是会话级临时目录，不是正式持久化存储
 - 版本系统是应用内快照，不是 Git
 - 当前 AI 改写已切换到模板化 Python backend；仍未接入持久化任务队列
 - 右栏 AI 面板与编辑器模板是集成关系，不是统一插件系统

@@ -112,7 +112,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("AI_MODEL", "OPENAI_MODEL"),
     )
     AI_TEMPERATURE: float = 0.7
-    AI_REQUEST_TIMEOUT_SECONDS: float = 60.0
+    AI_REQUEST_TIMEOUT_SECONDS: float = 120.0
     AI_FRAMEWORK: str = "langchain"
     LLM_PROVIDER: str = "openai"
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"

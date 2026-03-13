@@ -2,37 +2,44 @@ export interface DocFile {
   path: string;
   name: string;
   content: string;
+  revision: number;
   isDirty: boolean;
   lastSavedAt?: number;
 }
 
 export interface SelectionContext {
-  from: number;
-  to: number;
+  start: number;
+  end: number;
   text: string;
   docPath: string;
-  beforeText?: string;
-  afterText?: string;
 }
 
 export interface EditRequest {
+  sessionId: string;
   docPath: string;
-  selectedText: string;
+  selectionStart: number;
+  selectionEnd: number;
   instruction: string;
-  documentTitle?: string;
-  beforeText?: string;
-  afterText?: string;
-  targetPlatform?: string;
+}
+
+export interface ProposedEdit {
+  docPath: string;
+  beforeMarkdown: string;
+  afterMarkdown: string;
+  selectionStart: number;
+  selectionEnd: number;
+  baseRevision: number;
+  changeSummary: string;
 }
 
 export interface EditSuggestion {
   id: string;
-  suggestedText: string;
   explanation?: string;
   createdAt: number;
   instruction: string;
   provider?: string;
   model?: string;
+  proposedEdits: ProposedEdit[];
   statusTrail?: RewriteStatus[];
 }
 
@@ -51,6 +58,12 @@ export interface VersionSnapshot {
   content: string;
   createdAt: number;
   source: "manual" | "ai";
+}
+
+export interface WorkspaceTreeEntry {
+  path: string;
+  name: string;
+  nodeType: "file" | "directory";
 }
 
 export type RewriteStatus = "collecting_context" | "rewriting" | "finalizing";

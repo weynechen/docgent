@@ -1,84 +1,112 @@
-"""API tests for rewrite routes."""
+"""API tests for workspace-backed rewrite routes."""
 
 import pytest
-from pydantic import ValidationError as PydanticValidationError
 
-from app.api.routes.v1.rewrite import stream_rewrite_events
-from app.core.exceptions import NotFoundError
-from app.schemas.rewrite import RewriteRequest, RewriteSuggestion
+from app.schemas.rewrite import ProposedEdit, RewriteRequest, RewriteSuggestion
 from app.services.rewrite import rewrite_run_service
+from app.services.workspace import markdown_to_plain_text, workspace_service
 
 
 class StubRewriteAgent:
     """Deterministic agent for API tests."""
 
-    async def rewrite(self, request):
+    async def rewrite(self, request, *, full_markdown, selected_plain_text, base_revision):
         return RewriteSuggestion(
             id="suggestion-1",
-            suggestedText=f"Rewritten: {request.selected_text}",
-            explanation="Tightened the wording.",
+            explanation="Tightened the selected paragraph.",
             createdAt=0,
             instruction=request.instruction,
             provider="stub",
             model="stub-model",
+            proposedEdits=[
+                ProposedEdit(
+                    docPath=request.doc_path,
+                    beforeMarkdown=full_markdown,
+                    afterMarkdown=full_markdown.replace(selected_plain_text, "Rewritten selection"),
+                    selectionStart=request.selection_start,
+                    selectionEnd=request.selection_end,
+                    baseRevision=base_revision,
+                    changeSummary="Rewrite the selected text",
+                )
+            ],
         )
 
 
 @pytest.mark.anyio
-async def test_create_rewrite_run_returns_request_id():
-    """Rewrite service should create a replayable run and emit events."""
+async def test_workspace_rewrite_run_returns_candidate_events():
+    """Rewrite service should emit a reviewable candidate over a workspace file."""
+
+    workspace = workspace_service.create_workspace()
+    session_id = workspace.session_id
+    file = workspace_service.read_file(session_id, "drafts/docs-as-code-writing.md")
+    plain_text = markdown_to_plain_text(file.content)
+    target = (
+        "I want an editor where I can write roughly, select one paragraph, ask AI to make it "
+        "clearer, review the diff, and decide whether to apply it."
+    )
+    start = plain_text.index(target)
+    end = start + len(target)
 
     original_agent = rewrite_run_service._agent
     rewrite_run_service._agent = StubRewriteAgent()
     try:
-        payload = {
-            "docPath": "docs/test.md",
-            "selectedText": "Original text",
-            "instruction": "Rewrite more clearly",
-            "documentTitle": "Test Doc",
-            "beforeText": "Before",
-            "afterText": "After",
-        }
-        response = rewrite_run_service.create_run(
-            RewriteRequest(**payload),
-            "/api/v1",
+        request = RewriteRequest(
+            sessionId=session_id,
+            docPath="drafts/docs-as-code-writing.md",
+            selectionStart=start,
+            selectionEnd=end,
+            instruction="Make this clearer",
         )
-        request_id = response.request_id
-        assert request_id
-        assert rewrite_run_service.has_run(request_id)
-
-        await rewrite_run_service.process_run(request_id, RewriteRequest(**payload))
-        event_stream = rewrite_run_service.stream_events(request_id)
+        response = rewrite_run_service.create_run(request, "/api/v1")
+        await rewrite_run_service.process_run(response.request_id, request)
 
         chunks: list[str] = []
-        async for chunk in event_stream:
+        async for chunk in rewrite_run_service.stream_events(response.request_id):
             chunks.append(chunk)
 
         body = "".join(chunks)
         assert '"type": "status"' in body
         assert "collecting_context" in body
-        assert "rewriting" in body
-        assert "finalizing" in body
-        assert "Rewritten: Original text" in body
+        assert "Rewrite the selected text" in body
         assert '"type": "done"' in body
     finally:
         rewrite_run_service._agent = original_agent
-
-
-def test_create_rewrite_run_rejects_blank_selection():
-    """Rewrite request schema should reject blank selected text."""
-
-    with pytest.raises(PydanticValidationError):
-        RewriteRequest(
-            docPath="docs/test.md",
-            selectedText="   ",
-            instruction="Rewrite more clearly",
-        )
+        workspace_service.dispose_workspace(session_id)
 
 
 @pytest.mark.anyio
-async def test_unknown_rewrite_run_returns_error():
-    """Unknown rewrite runs should raise a not-found error."""
+async def test_apply_rewrite_run_updates_workspace_file():
+    """Applying a run should overwrite the workspace file at a new revision."""
 
-    with pytest.raises(NotFoundError):
-        await stream_rewrite_events("unknown-run", rewrite_run_service)
+    workspace = workspace_service.create_workspace()
+    session_id = workspace.session_id
+    file = workspace_service.read_file(session_id, "drafts/docs-as-code-writing.md")
+    plain_text = markdown_to_plain_text(file.content)
+    target = (
+        "I want an editor where I can write roughly, select one paragraph, ask AI to make it "
+        "clearer, review the diff, and decide whether to apply it."
+    )
+    start = plain_text.index(target)
+    end = start + len(target)
+
+    original_agent = rewrite_run_service._agent
+    rewrite_run_service._agent = StubRewriteAgent()
+    try:
+        request = RewriteRequest(
+            sessionId=session_id,
+            docPath="drafts/docs-as-code-writing.md",
+            selectionStart=start,
+            selectionEnd=end,
+            instruction="Make this clearer",
+        )
+        response = rewrite_run_service.create_run(request, "/api/v1")
+        await rewrite_run_service.process_run(response.request_id, request)
+
+        applied = rewrite_run_service.apply_run(session_id, response.request_id)
+
+        assert applied.doc_path == "drafts/docs-as-code-writing.md"
+        assert applied.revision == 2
+        assert "Rewritten selection" in applied.content
+    finally:
+        rewrite_run_service._agent = original_agent
+        workspace_service.dispose_workspace(session_id)

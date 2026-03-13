@@ -80,7 +80,11 @@ def create_app() -> FastAPI:
         },
         {
             "name": "rewrite",
-            "description": "Selection rewrite endpoints for the writing workspace",
+            "description": "Reviewable AI rewrite endpoints scoped to backend workspaces",
+        },
+        {
+            "name": "workspaces",
+            "description": "Temporary workspace endpoints for remote document browsing and editing",
         },
     ]
 
@@ -94,7 +98,8 @@ Docgent backend service
 - **Authentication**: JWT-based authentication with refresh tokens
 - **Database**: Async database operations
 - **AI Agent**: LangChain-powered conversational assistant
-- **Rewrite API**: Selection-based rewrite flow for the writing editor
+- **Workspaces API**: Backend-backed document browsing and editing
+- **Rewrite API**: Reviewable AI rewrite flow over a backend workspace
 
 ## Documentation
 

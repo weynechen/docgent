@@ -17,12 +17,22 @@ from app.schemas.conversation import (
     ToolCallRead,
 )
 from app.schemas.rewrite import (
+    ProposedEdit,
+    RewriteApplyResponse,
     RewriteDoneEvent,
     RewriteErrorEvent,
     RewriteRequest,
     RewriteResultEvent,
     RewriteRunResponse,
+    RewriteSuggestion,
     RewriteStatusEvent,
+)
+from app.schemas.workspace import (
+    WorkspaceCreateResponse,
+    WorkspaceEntry,
+    WorkspaceFileResponse,
+    WorkspaceFileUpdateRequest,
+    WorkspaceTreeResponse,
 )
 
 __all__ = [
@@ -43,10 +53,18 @@ __all__ = [
     "MessageCreate",
     "MessageRead",
     "ToolCallRead",
+    "ProposedEdit",
+    "RewriteApplyResponse",
     "RewriteDoneEvent",
     "RewriteErrorEvent",
     "RewriteRequest",
     "RewriteResultEvent",
     "RewriteRunResponse",
+    "RewriteSuggestion",
     "RewriteStatusEvent",
+    "WorkspaceCreateResponse",
+    "WorkspaceEntry",
+    "WorkspaceFileResponse",
+    "WorkspaceFileUpdateRequest",
+    "WorkspaceTreeResponse",
 ]

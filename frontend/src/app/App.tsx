@@ -29,7 +29,6 @@ const MIN_LEFT_WIDTH = 180;
 const MAX_LEFT_WIDTH = 420;
 const MIN_RIGHT_WIDTH = 260;
 const MAX_RIGHT_WIDTH = 480;
-const CONTEXT_WINDOW = 280;
 
 function App() {
   const {
@@ -107,20 +106,13 @@ function App() {
         return;
       }
 
-      const text = instance.state.doc.textBetween(from, to, "\n");
-      const beforeText = instance.state.doc.textBetween(Math.max(0, from - CONTEXT_WINDOW), from, "\n");
-      const afterText = instance.state.doc.textBetween(
-        to,
-        Math.min(instance.state.doc.content.size, to + CONTEXT_WINDOW),
-        "\n",
-      );
+      const text = instance.state.doc.textBetween(from, to, "\n", "\n");
+      const leadingText = instance.state.doc.textBetween(0, from, "\n", "\n");
       setSelection({
-        from: from - 1,
-        to: to - 1,
+        start: leadingText.length,
+        end: leadingText.length + text.length,
         text,
         docPath: activeDocPath,
-        beforeText,
-        afterText,
       });
     },
     onUpdate: ({ editor: instance }) => {
@@ -178,13 +170,11 @@ function App() {
   };
 
   const handleApplySuggestion = async () => {
-    if (!editor || !currentSuggestion) {
+    if (!currentSuggestion) {
       return;
     }
 
-    const applied = await applySuggestion(({ from, to, text }) =>
-      editor.chain().focus().insertContentAt({ from: from + 1, to: to + 1 }, text).run(),
-    );
+    const applied = await applySuggestion();
 
     if (applied) {
       await createVersion("AI rewrite applied", "ai");
@@ -343,7 +333,7 @@ function App() {
             </div>
             <div className="flex-1">
               <p className="text-xs font-bold truncate">John Doe</p>
-              <p className="text-[10px] text-slate-400">Local Workspace</p>
+              <p className="text-[10px] text-slate-400">Backend Workspace</p>
             </div>
             <button className="text-slate-400 hover:text-slate-600" onClick={() => void saveActiveDoc()} type="button">
               <Settings size={16} />
@@ -413,7 +403,7 @@ function App() {
             ) : null}
             <span className="flex items-center gap-1">
               <span className={`w-2 h-2 rounded-full ${activeDoc?.isDirty ? "bg-amber-500" : "bg-emerald-500"}`}></span>
-              {activeDoc?.isDirty ? "Unsaved changes" : "Saved locally"}
+              {activeDoc?.isDirty ? "Unsaved changes" : "Saved in workspace"}
             </span>
             {lastAppliedChange ? <span>AI updated {new Date(lastAppliedChange.appliedAt).toLocaleTimeString()}</span> : null}
             <button className="inline-flex items-center gap-1 text-slate-500 hover:text-primary" onClick={() => void saveActiveDoc()} type="button">
@@ -490,20 +480,23 @@ function App() {
                   <Sparkles size={14} />
                 </div>
                 <div className="flex-1 space-y-3">
-                  <p className="text-xs leading-relaxed text-slate-600">Here is a revised version:</p>
-                  <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-lg">
-                    <p className="text-xs text-emerald-800 italic whitespace-pre-wrap">
-                      "{currentSuggestion.suggestedText}"
-                    </p>
-                  </div>
-                  {selection ? (
+                  <p className="text-xs leading-relaxed text-slate-600">Here is a reviewable document candidate:</p>
+                  {currentSuggestion.proposedEdits[0] ? (
                     <div className="rounded-lg border border-slate-200 bg-white p-3">
                       <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">Diff preview</p>
-                      <DiffPreview original={selection.text} suggested={currentSuggestion.suggestedText} />
+                      <DiffPreview
+                        original={currentSuggestion.proposedEdits[0].beforeMarkdown}
+                        suggested={currentSuggestion.proposedEdits[0].afterMarkdown}
+                      />
                     </div>
                   ) : null}
                   {currentSuggestion.explanation ? (
                     <p className="text-xs leading-relaxed text-slate-500">{currentSuggestion.explanation}</p>
+                  ) : null}
+                  {currentSuggestion.proposedEdits[0] ? (
+                    <p className="text-[11px] text-slate-400">
+                      {currentSuggestion.proposedEdits[0].changeSummary}
+                    </p>
                   ) : null}
                   {currentSuggestion.model ? (
                     <p className="text-[11px] text-slate-400">
@@ -514,7 +507,7 @@ function App() {
                     <button className="text-[11px] font-bold text-primary hover:underline" onClick={() => void handleApplySuggestion()} type="button">
                       Apply
                     </button>
-                    <button className="text-[11px] font-bold text-slate-400 hover:underline" onClick={() => rejectSuggestion()} type="button">
+                    <button className="text-[11px] font-bold text-slate-400 hover:underline" onClick={() => void rejectSuggestion()} type="button">
                       Discard
                     </button>
                   </div>
@@ -561,7 +554,7 @@ function App() {
             </div>
           </div>
           {isGenerating ? (
-            <p className="mt-2 text-[11px] text-slate-400">The local pi agent is running and will return a reviewable suggestion.</p>
+            <p className="mt-2 text-[11px] text-slate-400">The backend workspace agent is running and will return a reviewable Markdown diff.</p>
           ) : null}
         </div>
           </aside>

@@ -1,4 +1,4 @@
-"""Schemas for selection rewrite flows."""
+"""Schemas for workspace-based rewrite flows."""
 
 from typing import Literal
 
@@ -10,27 +10,37 @@ RewriteStatus = Literal["collecting_context", "rewriting", "finalizing"]
 
 
 class RewriteRequest(BaseSchema):
-    """Request payload for a selection rewrite run."""
+    """Request payload for a workspace rewrite run."""
 
+    session_id: str = Field(min_length=1, alias="sessionId")
     doc_path: str = Field(min_length=1, alias="docPath")
-    selected_text: str = Field(min_length=1, alias="selectedText")
+    selection_start: int = Field(alias="selectionStart", ge=0)
+    selection_end: int = Field(alias="selectionEnd", ge=0)
     instruction: str = Field(min_length=1)
-    document_title: str | None = Field(default=None, alias="documentTitle")
-    before_text: str | None = Field(default=None, alias="beforeText")
-    after_text: str | None = Field(default=None, alias="afterText")
-    target_platform: str | None = Field(default=None, alias="targetPlatform")
+
+
+class ProposedEdit(BaseSchema):
+    """A reviewable document change proposed by the agent."""
+
+    doc_path: str = Field(alias="docPath")
+    before_markdown: str = Field(alias="beforeMarkdown")
+    after_markdown: str = Field(alias="afterMarkdown")
+    selection_start: int = Field(alias="selectionStart", ge=0)
+    selection_end: int = Field(alias="selectionEnd", ge=0)
+    base_revision: int = Field(alias="baseRevision", ge=0)
+    change_summary: str = Field(alias="changeSummary")
 
 
 class RewriteSuggestion(BaseSchema):
-    """Final rewrite suggestion returned to the client."""
+    """Candidate rewrite result returned to the client."""
 
     id: str
-    suggested_text: str = Field(alias="suggestedText")
     explanation: str | None = None
     created_at: int = Field(alias="createdAt")
     instruction: str
     provider: str | None = None
     model: str | None = None
+    proposed_edits: list[ProposedEdit] = Field(alias="proposedEdits")
 
 
 class RewriteRunResponse(BaseSchema):
@@ -38,6 +48,16 @@ class RewriteRunResponse(BaseSchema):
 
     request_id: str = Field(alias="requestId")
     stream_path: str = Field(alias="streamPath")
+
+
+class RewriteApplyResponse(BaseSchema):
+    """Response returned when a candidate rewrite is applied."""
+
+    run_id: str = Field(alias="runId")
+    doc_path: str = Field(alias="docPath")
+    revision: int
+    content: str
+    applied_at: int = Field(alias="appliedAt")
 
 
 class RewriteStatusEvent(BaseSchema):

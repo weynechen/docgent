@@ -10,7 +10,7 @@ from app.api.routes.v1 import sessions
 from app.api.routes.v1 import items
 from app.api.routes.v1 import conversations
 from app.api.routes.v1 import agent
-from app.api.routes.v1 import rewrite
+from app.api.routes.v1 import workspaces
 
 v1_router = APIRouter()
 
@@ -38,5 +38,5 @@ v1_router.include_router(conversations.router, prefix="/conversations", tags=["c
 # AI Agent routes
 v1_router.include_router(agent.router, tags=["agent"])
 
-# Rewrite routes
-v1_router.include_router(rewrite.router, prefix="/ai/rewrite", tags=["rewrite"])
+# Workspace routes
+v1_router.include_router(workspaces.router, tags=["workspaces", "rewrite"])

@@ -13,6 +13,7 @@ from app.services.item import ItemService
 
 from app.services.conversation import ConversationService
 from app.services.rewrite import RewriteRunService, rewrite_run_service
+from app.services.workspace import WorkspaceService, workspace_service
 
 __all__ = [
     "UserService",
@@ -21,4 +22,6 @@ __all__ = [
     "ConversationService",
     "RewriteRunService",
     "rewrite_run_service",
+    "WorkspaceService",
+    "workspace_service",
 ]

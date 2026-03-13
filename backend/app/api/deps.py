@@ -24,6 +24,7 @@ from app.services.session import SessionService
 from app.services.item import ItemService
 from app.services.conversation import ConversationService
 from app.services.rewrite import RewriteRunService, rewrite_run_service
+from app.services.workspace import WorkspaceService, workspace_service
 
 
 def get_user_service(db: DBSession) -> UserService:
@@ -62,6 +63,14 @@ def get_rewrite_service() -> RewriteRunService:
 
 
 RewriteSvc = Annotated[RewriteRunService, Depends(get_rewrite_service)]
+
+
+def get_workspace_service() -> WorkspaceService:
+    """Return the singleton workspace service."""
+    return workspace_service
+
+
+WorkspaceSvc = Annotated[WorkspaceService, Depends(get_workspace_service)]
 
 # === Authentication Dependencies ===
 
