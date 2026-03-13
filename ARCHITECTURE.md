@@ -19,13 +19,16 @@
   - `documentStore.ts`：文档读取/保存接口与 mock 实现
   - `versionStore.ts`：版本快照接口与 localStorage 实现
 - `src/ai/`
-  - `provider.ts`：AI 改写 provider 抽象与 mock 实现
+  - `provider.ts`：前端 AI provider，负责启动改写请求并订阅 SSE 事件
+- `server/`
+  - `index.ts`：本地 Node agent 服务，对前端暴露 `/api/ai/rewrite`
+  - `rewrite-agent.ts`：基于 `@mariozechner/pi-ai` 的选区改写 agent
 
 ### 表达层
 
 - `src/shared/`
   - `markdown.ts`：Markdown 与编辑器内容的转换
-  - `types.ts`：领域实体定义
+  - `types.ts`：领域实体、改写流事件与版本定义
   - `storage.ts`：浏览器持久化辅助
   - `diff.ts`：差异预览逻辑
 
@@ -42,7 +45,7 @@
 
 - 文档存储仍是 mock/in-memory，不是本地文件系统
 - 版本系统是应用内快照，不是 Git
-- AI 改写仍是 mock provider，不是线上模型
+- AI 改写已切换为本地 agent 服务，但仍只覆盖单一“选区改写”能力
 - 右栏 AI 面板与编辑器模板是集成关系，不是统一插件系统
 
 ## 后续演进

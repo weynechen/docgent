@@ -11,6 +11,8 @@ export interface SelectionContext {
   to: number;
   text: string;
   docPath: string;
+  beforeText?: string;
+  afterText?: string;
 }
 
 export interface EditRequest {
@@ -29,6 +31,9 @@ export interface EditSuggestion {
   explanation?: string;
   createdAt: number;
   instruction: string;
+  provider?: string;
+  model?: string;
+  statusTrail?: RewriteStatus[];
 }
 
 export interface AppliedChange {
@@ -47,3 +52,40 @@ export interface VersionSnapshot {
   createdAt: number;
   source: "manual" | "ai";
 }
+
+export type RewriteStatus = "collecting_context" | "rewriting" | "finalizing";
+
+export interface RewriteStatusEvent {
+  type: "status";
+  runId: string;
+  status: RewriteStatus;
+  message: string;
+  createdAt: number;
+}
+
+export interface RewriteResultEvent {
+  type: "result";
+  runId: string;
+  suggestion: EditSuggestion;
+  createdAt: number;
+}
+
+export interface RewriteErrorEvent {
+  type: "error";
+  runId: string;
+  code: string;
+  message: string;
+  createdAt: number;
+}
+
+export interface RewriteDoneEvent {
+  type: "done";
+  runId: string;
+  createdAt: number;
+}
+
+export type RewriteStreamEvent =
+  | RewriteStatusEvent
+  | RewriteResultEvent
+  | RewriteErrorEvent
+  | RewriteDoneEvent;

@@ -21,6 +21,7 @@ import {
 import { SimpleEditor, createSimpleEditorExtensions } from "@/components/tiptap-templates/simple/simple-editor";
 import { useWorkspaceStore } from "./store";
 import { docToMarkdown, markdownToDoc } from "../shared/markdown";
+import { DiffPreview } from "../ui/DiffPreview";
 
 const DEFAULT_LEFT_WIDTH = 250;
 const DEFAULT_RIGHT_WIDTH = 320;
@@ -28,6 +29,7 @@ const MIN_LEFT_WIDTH = 180;
 const MAX_LEFT_WIDTH = 420;
 const MIN_RIGHT_WIDTH = 260;
 const MAX_RIGHT_WIDTH = 480;
+const CONTEXT_WINDOW = 280;
 
 function App() {
   const {
@@ -36,6 +38,8 @@ function App() {
     activeDocPath,
     selection,
     currentSuggestion,
+    agentStatusTrail,
+    agentRunState,
     isGenerating,
     versions,
     selectedVersionId,
@@ -104,11 +108,19 @@ function App() {
       }
 
       const text = instance.state.doc.textBetween(from, to, "\n");
+      const beforeText = instance.state.doc.textBetween(Math.max(0, from - CONTEXT_WINDOW), from, "\n");
+      const afterText = instance.state.doc.textBetween(
+        to,
+        Math.min(instance.state.doc.content.size, to + CONTEXT_WINDOW),
+        "\n",
+      );
       setSelection({
         from: from - 1,
         to: to - 1,
         text,
         docPath: activeDocPath,
+        beforeText,
+        afterText,
       });
     },
     onUpdate: ({ editor: instance }) => {
@@ -212,6 +224,15 @@ function App() {
     window.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("pointerup", handlePointerUp);
   };
+
+  const statusLabel =
+    agentRunState === "running"
+      ? "Agent running"
+      : agentRunState === "complete"
+        ? "Suggestion ready"
+        : agentRunState === "error"
+          ? "Run failed"
+          : "Idle";
 
   return (
     <div className="flex h-screen w-full bg-[#f6f6f8] text-slate-900 font-sans overflow-hidden">
@@ -417,7 +438,7 @@ function App() {
         <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-white/50">
           <div className="flex items-center gap-2">
             <Sparkles size={18} className="text-primary" />
-            <h3 className="text-sm font-bold uppercase tracking-tight">AI Chat</h3>
+            <h3 className="text-sm font-bold uppercase tracking-tight">AI Rewrite</h3>
           </div>
           <button
             className="text-slate-400 cursor-pointer hover:text-slate-600"
@@ -441,6 +462,28 @@ function App() {
               </div>
             ) : null}
 
+            {agentStatusTrail.length > 0 ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">Agent run</p>
+                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-500">
+                    {statusLabel}
+                  </span>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {agentStatusTrail.map((event, index) => (
+                    <div className="flex items-start gap-2 text-xs text-slate-600" key={`${event.runId}-${event.status}-${index}`}>
+                      <span className="mt-1 size-1.5 shrink-0 rounded-full bg-primary/60"></span>
+                      <div>
+                        <p className="font-medium text-slate-700">{event.status.replace(/_/g, " ")}</p>
+                        <p>{event.message}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             {currentSuggestion ? (
               <div className="flex gap-3">
                 <div className="size-6 rounded bg-primary/10 flex items-center justify-center text-primary shrink-0 mt-0.5">
@@ -453,6 +496,20 @@ function App() {
                       "{currentSuggestion.suggestedText}"
                     </p>
                   </div>
+                  {selection ? (
+                    <div className="rounded-lg border border-slate-200 bg-white p-3">
+                      <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">Diff preview</p>
+                      <DiffPreview original={selection.text} suggested={currentSuggestion.suggestedText} />
+                    </div>
+                  ) : null}
+                  {currentSuggestion.explanation ? (
+                    <p className="text-xs leading-relaxed text-slate-500">{currentSuggestion.explanation}</p>
+                  ) : null}
+                  {currentSuggestion.model ? (
+                    <p className="text-[11px] text-slate-400">
+                      {currentSuggestion.provider ?? "provider"} / {currentSuggestion.model}
+                    </p>
+                  ) : null}
                   <div className="flex gap-3">
                     <button className="text-[11px] font-bold text-primary hover:underline" onClick={() => void handleApplySuggestion()} type="button">
                       Apply
@@ -469,11 +526,11 @@ function App() {
 
         <div className="p-4 border-t border-slate-200 bg-white">
           <div className="mb-3 flex items-center">
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 border border-slate-200 rounded text-[10px] text-slate-500 font-medium">
-              <AlignLeft size={12} />
+              <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 border border-slate-200 rounded text-[10px] text-slate-500 font-medium">
+                <AlignLeft size={12} />
               {selection ? `${selectedLineCount} lines selected` : "No selection"}
+              </div>
             </div>
-          </div>
           <div className="relative flex items-end gap-2">
             <div className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all">
               <textarea
@@ -503,6 +560,9 @@ function App() {
               </div>
             </div>
           </div>
+          {isGenerating ? (
+            <p className="mt-2 text-[11px] text-slate-400">The local pi agent is running and will return a reviewable suggestion.</p>
+          ) : null}
         </div>
           </aside>
         </>

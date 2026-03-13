@@ -1,59 +1,117 @@
-import type { EditRequest, EditSuggestion } from "../shared/types";
+import type {
+  EditRequest,
+  RewriteDoneEvent,
+  RewriteErrorEvent,
+  RewriteResultEvent,
+  RewriteStatusEvent,
+  RewriteStreamEvent,
+} from "../shared/types";
 
-export interface AIProvider {
-  rewriteSelection(input: EditRequest): Promise<EditSuggestion>;
+interface RewriteRunResponse {
+  requestId: string;
 }
 
-function normalizeWhitespace(text: string) {
-  return text.replace(/\s+/g, " ").trim();
+interface RewriteStreamHandlers {
+  onStatus?: (event: RewriteStatusEvent) => void;
+  onResult?: (event: RewriteResultEvent) => void;
+  onError?: (event: RewriteErrorEvent) => void;
+  onDone?: (event: RewriteDoneEvent) => void;
 }
 
-function rewriteWithInstruction(text: string, instruction: string) {
-  const compact = normalizeWhitespace(text);
-  const lowerInstruction = instruction.toLowerCase();
-
-  if (!compact) {
-    return text;
+function isRewriteStreamEvent(value: unknown): value is RewriteStreamEvent {
+  if (!value || typeof value !== "object" || !("type" in value)) {
+    return false;
   }
 
-  if (lowerInstruction.includes("short") || lowerInstruction.includes("精简")) {
-    return compact
-      .replace(/\breally\b/gi, "")
-      .replace(/\bvery\b/gi, "")
-      .replace(/\s{2,}/g, " ")
-      .trim();
-  }
-
-  if (lowerInstruction.includes("expand") || lowerInstruction.includes("扩展")) {
-    return `${compact} This keeps the original point but adds one more sentence to clarify the practical impact for the reader.`;
-  }
-
-  if (lowerInstruction.includes("formal") || lowerInstruction.includes("正式")) {
-    return compact.replace(/\bI want\b/gi, "The goal is").replace(/\bcan't\b/gi, "cannot");
-  }
-
-  if (lowerInstruction.includes("口语") || lowerInstruction.includes("casual")) {
-    return compact.replace(/\bdo not\b/gi, "don't").replace(/\bdoes not\b/gi, "doesn't");
-  }
-
-  return compact
-    .replace(/^([a-z])/i, (char) => char.toUpperCase())
-    .replace(/\.$/, "")
-    .concat(".")
-    .replace("That context switching slows thinking down.", "That constant context switching breaks momentum and makes it harder to finish a draft.");
+  const event = value as { type?: unknown };
+  return (
+    event.type === "status" ||
+    event.type === "result" ||
+    event.type === "error" ||
+    event.type === "done"
+  );
 }
 
-export const mockAIProvider: AIProvider = {
-  async rewriteSelection(input) {
-    await new Promise((resolve) => window.setTimeout(resolve, 800));
+export async function startRewriteSelectionRun(
+  input: EditRequest,
+  handlers: RewriteStreamHandlers,
+): Promise<() => void> {
+  const response = await fetch("/api/ai/rewrite", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(input),
+  });
 
-    const suggestedText = rewriteWithInstruction(input.selectedText, input.instruction);
-    return {
-      id: `suggestion-${Date.now()}`,
-      suggestedText,
-      explanation: "Suggestion keeps the original claim, improves clarity, and avoids inventing new facts.",
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || "Failed to start rewrite request.");
+  }
+
+  const { requestId } = (await response.json()) as RewriteRunResponse;
+  const eventSource = new EventSource(`/api/ai/rewrite/${requestId}/events`);
+
+  const close = () => {
+    eventSource.close();
+  };
+
+  eventSource.onmessage = (event) => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(event.data) as unknown;
+    } catch {
+      handlers.onError?.({
+        type: "error",
+        runId: requestId,
+        code: "invalid_event",
+        message: "Received an invalid event from the local AI service.",
+        createdAt: Date.now(),
+      });
+      close();
+      return;
+    }
+
+    if (!isRewriteStreamEvent(parsed)) {
+      handlers.onError?.({
+        type: "error",
+        runId: requestId,
+        code: "unexpected_event",
+        message: "Received an unsupported event from the local AI service.",
+        createdAt: Date.now(),
+      });
+      close();
+      return;
+    }
+
+    switch (parsed.type) {
+      case "status":
+        handlers.onStatus?.(parsed);
+        break;
+      case "result":
+        handlers.onResult?.(parsed);
+        break;
+      case "error":
+        handlers.onError?.(parsed);
+        close();
+        break;
+      case "done":
+        handlers.onDone?.(parsed);
+        close();
+        break;
+    }
+  };
+
+  eventSource.onerror = () => {
+    handlers.onError?.({
+      type: "error",
+      runId: requestId,
+      code: "stream_disconnected",
+      message: "Connection to the local AI service was interrupted.",
       createdAt: Date.now(),
-      instruction: input.instruction,
-    };
-  },
-};
+    });
+    close();
+  };
+
+  return close;
+}

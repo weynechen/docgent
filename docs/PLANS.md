@@ -7,6 +7,7 @@
 ## 已完成计划
 
 - `exec-plans/completed/mvp-ui-foundation.md`
+- `exec-plans/completed/pi-mono-selection-agent.md`
 
 ## 技术债
 

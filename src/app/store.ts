@@ -1,11 +1,12 @@
 import { create } from "zustand";
-import { mockAIProvider } from "../ai/provider";
+import { startRewriteSelectionRun } from "../ai/provider";
 import { mockDocumentStore } from "../documents/documentStore";
 import { localVersionStore } from "../documents/versionStore";
 import type {
   AppliedChange,
   DocFile,
   EditSuggestion,
+  RewriteStatusEvent,
   SelectionContext,
   VersionSnapshot,
 } from "../shared/types";
@@ -23,6 +24,8 @@ interface WorkspaceState {
   activeDoc?: DocFile;
   selection?: SelectionContext;
   currentSuggestion?: EditSuggestion;
+  agentStatusTrail: RewriteStatusEvent[];
+  agentRunState: "idle" | "running" | "complete" | "error";
   isGenerating: boolean;
   versions: VersionSnapshot[];
   selectedVersionId?: string;
@@ -49,8 +52,17 @@ interface WorkspaceState {
   setNotice: (message: string, tone: NoticeTone) => void;
 }
 
+let activeRewriteStream: (() => void) | undefined;
+
+function closeActiveRewriteStream() {
+  activeRewriteStream?.();
+  activeRewriteStream = undefined;
+}
+
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   docs: [],
+  agentStatusTrail: [],
+  agentRunState: "idle",
   isGenerating: false,
   versions: [],
 
@@ -67,6 +79,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   async setActiveDoc(path) {
+    closeActiveRewriteStream();
     const activeDoc = await mockDocumentStore.openDoc(path);
     const versions = await localVersionStore.listVersions(path);
     set({
@@ -75,6 +88,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       versions,
       selection: undefined,
       currentSuggestion: undefined,
+      agentStatusTrail: [],
+      agentRunState: "idle",
+      isGenerating: false,
       selectedVersionId: undefined,
     });
   },
@@ -128,14 +144,23 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   setSelection(selection) {
+    closeActiveRewriteStream();
     set({
       selection,
+      currentSuggestion: undefined,
+      agentStatusTrail: [],
+      agentRunState: "idle",
+      isGenerating: false,
     });
   },
 
   clearSuggestion() {
+    closeActiveRewriteStream();
     set({
       currentSuggestion: undefined,
+      agentStatusTrail: [],
+      agentRunState: "idle",
+      isGenerating: false,
     });
   },
 
@@ -151,22 +176,63 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       return;
     }
 
-    set({ isGenerating: true, notice: undefined });
+    closeActiveRewriteStream();
+    set({
+      isGenerating: true,
+      notice: undefined,
+      currentSuggestion: undefined,
+      agentStatusTrail: [],
+      agentRunState: "running",
+    });
+
     try {
-      const suggestion = await mockAIProvider.rewriteSelection({
+      activeRewriteStream = await startRewriteSelectionRun({
         docPath: activeDoc.path,
         selectedText: selection.text,
         instruction,
         documentTitle: activeDoc.name,
-      });
-
-      set({
-        currentSuggestion: suggestion,
-        isGenerating: false,
+        beforeText: selection.beforeText,
+        afterText: selection.afterText,
+      }, {
+        onStatus: (event) => {
+          set((state) => ({
+            agentStatusTrail: [...state.agentStatusTrail, event],
+            agentRunState: "running",
+          }));
+        },
+        onResult: (event) => {
+          set(() => ({
+            currentSuggestion: {
+              ...event.suggestion,
+              statusTrail: get().agentStatusTrail.map((item) => item.status),
+            },
+            isGenerating: false,
+            agentRunState: "complete",
+          }));
+        },
+        onError: (event) => {
+          closeActiveRewriteStream();
+          set({
+            isGenerating: false,
+            agentRunState: "error",
+            notice: {
+              message: event.message,
+              tone: "error",
+            },
+          });
+        },
+        onDone: () => {
+          closeActiveRewriteStream();
+          set((state) => ({
+            isGenerating: false,
+            agentRunState: state.currentSuggestion ? "complete" : state.agentRunState,
+          }));
+        },
       });
     } catch {
       set({
         isGenerating: false,
+        agentRunState: "error",
         notice: {
           message: "AI rewrite failed. Please retry.",
           tone: "error",
@@ -197,6 +263,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       return false;
     }
 
+    closeActiveRewriteStream();
     set(() => {
       return {
         lastAppliedChange: {
@@ -212,6 +279,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
           text: currentSuggestion.suggestedText,
           to: selection.from + currentSuggestion.suggestedText.length,
         },
+        agentStatusTrail: [],
+        agentRunState: "idle",
         notice: {
           message: "AI suggestion applied.",
           tone: "success",
@@ -223,8 +292,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   rejectSuggestion() {
+    closeActiveRewriteStream();
     set({
       currentSuggestion: undefined,
+      agentStatusTrail: [],
+      agentRunState: "idle",
+      isGenerating: false,
       notice: {
         message: "Suggestion dismissed.",
         tone: "info",
@@ -275,6 +348,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       return;
     }
 
+    closeActiveRewriteStream();
     const restored = await localVersionStore.restoreVersion(versionId);
     updater(restored.content);
     set((state) => {
@@ -293,6 +367,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         docs: state.docs.map((doc) => (doc.path === updatedDoc.path ? updatedDoc : doc)),
         currentSuggestion: undefined,
         selection: undefined,
+        agentStatusTrail: [],
+        agentRunState: "idle",
+        isGenerating: false,
         notice: {
           message: "Version restored into the current document.",
           tone: "success",
