@@ -1,8 +1,10 @@
-# pi-mono 选区改写 Agent 接入
+# pi-mono 选区改写 Agent 接入（历史原型）
 
 ## 目标
 
 将当前前端内的 mock 改写逻辑替换为本地 Node agent 服务，保持 MVP 的选区改写交互不变，同时引入真实模型能力与更清晰的运行状态反馈。
+
+说明：该方案已降级为历史过渡原型，长期方向改为云端 Python API service + Python agent runtime。
 
 ## 已完成决策
 

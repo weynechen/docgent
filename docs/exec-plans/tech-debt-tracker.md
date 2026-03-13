@@ -2,11 +2,11 @@
 
 ## 高优先级
 
-1. `src/app/store.ts`
+1. `frontend/src/app/store.ts`
    - AI 建议应用与富文本选区同步仍然依赖较脆弱的范围映射
 2. `@/components/tiptap-templates/simple/`
    - 官方模板整体体积较大，引入了超出 MVP 需求的能力
-3. `src/shared/markdown.ts`
+3. `frontend/src/shared/markdown.ts`
    - Markdown 往返转换仍是简化实现，复杂结构下存在失真风险
 
 ## 中优先级

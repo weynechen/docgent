@@ -2,35 +2,60 @@
 
 ## 概览
 
-当前项目是一个基于 `React + Tiptap + Zustand + Vite` 的 Docs-as-Code 写作 IDE 原型。架构目标是把“编辑器体验”“AI 改写”“文档存储”“版本快照”分离，避免未来接入 Electron、本地文件系统或真实模型时发生强耦合。
+当前项目已从“单前端原型”进入“前端 + 云端 backend 目标架构”的阶段。目标方向对齐 `full-stack-ai-agent-template` 的分层思路，但保留本项目自己的 React/Tiptap 前端与桌面策略。
+
+目标架构是：
+
+- `frontend`：React + Tiptap 写作前端
+- `desktop`：Electron 桌面壳，连接远端 API
+- `backend`：Python 主后端，采用模板推荐的单 backend 分层
+
+在目标架构中，AI 运行框架改为 `LangChain`，优先复用模板已有能力，不再以 OpenAI Agents 作为主线。
+
+当前仓库仍保留一个本地 Node AI 原型，供开发阶段验证交互链路，但它不再代表长期服务端方向。
 
 ## 分层
 
-### 应用层
+### 前端工作区
 
-- `src/app/App.tsx`
+- `frontend/src/app/App.tsx`
   - 负责工作台布局、侧栏折叠/拖拽、标签栏、状态栏和跨区域交互编排。
-- `src/app/store.ts`
+- `frontend/src/app/store.ts`
   - 负责工作区状态、AI 建议状态、版本列表、通知与文档保存。
 
-### 领域层
+### 前端领域与表达层
 
-- `src/documents/`
+- `frontend/src/documents/`
   - `documentStore.ts`：文档读取/保存接口与 mock 实现
   - `versionStore.ts`：版本快照接口与 localStorage 实现
-- `src/ai/`
+- `frontend/src/ai/`
   - `provider.ts`：前端 AI provider，负责启动改写请求并订阅 SSE 事件
-- `server/`
-  - `index.ts`：本地 Node agent 服务，对前端暴露 `/api/ai/rewrite`
-  - `rewrite-agent.ts`：基于 `@mariozechner/pi-ai` 的选区改写 agent
-
-### 表达层
-
-- `src/shared/`
+- `frontend/src/shared/`
   - `markdown.ts`：Markdown 与编辑器内容的转换
   - `types.ts`：领域实体、改写流事件与版本定义
   - `storage.ts`：浏览器持久化辅助
   - `diff.ts`：差异预览逻辑
+
+### 云端后端目标目录
+
+- `backend/app/api`
+  - 预留给 FastAPI 路由与流式接口
+- `backend/app/services`
+  - 负责认证、用户、文档、版本、任务编排等应用服务
+- `backend/app/repos`
+  - 负责数据库访问
+- `backend/app/agents`
+  - 负责 LangChain agents、chains、tools 与模型调用
+- `backend/app/core`
+  - 负责配置、鉴权、依赖注入与基础能力
+
+该结构优先复用 `full-stack-ai-agent-template` 的已有能力，而不是在当前仓库重新设计一套 agent 基础设施。
+
+### 过渡原型目录
+
+- `prototypes/local-agent/server/`
+  - 当前开发期使用的本地 Node rewrite 原型
+  - 仅作为过渡验证实现，不是长期主线
 
 ### 编辑器 UI 层
 
@@ -45,12 +70,13 @@
 
 - 文档存储仍是 mock/in-memory，不是本地文件系统
 - 版本系统是应用内快照，不是 Git
-- AI 改写已切换为本地 agent 服务，但仍只覆盖单一“选区改写”能力
+- 当前 AI 改写仍依赖本地 Node 原型服务，不代表长期云端实现
 - 右栏 AI 面板与编辑器模板是集成关系，不是统一插件系统
+- `backend` 与 `desktop` 目前还是目标目录，占位多于实现
 
 ## 后续演进
 
-1. 将 `DocumentStore` 替换为本地目录与 Markdown 文件读写实现。
-2. 将 `VersionStore` 从浏览器快照升级为 Git 或兼容型版本存储。
-3. 将 AI provider 抽象扩展为真实模型网关与多 provider 适配。
-4. 把编辑器 UI 定制从模板级覆盖收敛为可维护的主题层与能力层。
+1. 将当前本地 Node AI 原型替换为 `backend` 中的 Python LangChain 实现。
+2. 在 `backend` 内部落地模板式分层，而不是过早拆微服务。
+3. MVP 阶段使用日志观测，后续优先接模板现有的 LangChain 观测扩展点。
+4. 在 `desktop` 中实现仅连接远端 API 的桌面壳。

@@ -3,6 +3,7 @@
 ## 当前执行计划
 
 - `exec-plans/active/editor-experience-hardening.md`
+- `exec-plans/active/template-aligned-backend-migration.md`
 
 ## 已完成计划
 

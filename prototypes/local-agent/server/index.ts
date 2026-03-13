@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { runRewriteAgent } from "./rewrite-agent.js";
-import type { EditRequest, RewriteStreamEvent } from "../src/shared/types.js";
+import type { EditRequest, RewriteStreamEvent } from "../../../frontend/src/shared/types.js";
 
 interface RewriteRun {
   id: string;

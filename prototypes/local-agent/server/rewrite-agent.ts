@@ -1,5 +1,10 @@
 import { Type, type Tool, stream, type AssistantMessage, type Model } from "@mariozechner/pi-ai";
-import type { EditRequest, EditSuggestion, RewriteStatus, RewriteStreamEvent } from "../src/shared/types.js";
+import type {
+  EditRequest,
+  EditSuggestion,
+  RewriteStatus,
+  RewriteStreamEvent,
+} from "../../../frontend/src/shared/types.js";
 
 const MAX_CONTEXT_CHARS = 280;
 

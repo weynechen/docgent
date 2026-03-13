@@ -4,11 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k \"npm:dev:web\" \"npm:dev:agent\"",
-    "dev:web": "vite",
-    "dev:agent": "node --env-file-if-exists=.env --import tsx server/index.ts",
-    "build": "tsc -b && tsc -p tsconfig.server.json && vite build",
-    "preview": "vite preview"
+    "dev": "concurrently -k \"npm:dev:web\" \"npm:dev:prototype-agent\"",
+    "dev:web": "vite --config frontend/vite.config.ts",
+    "dev:prototype-agent": "node --env-file-if-exists=.env --import tsx prototypes/local-agent/server/index.ts",
+    "build": "tsc -b frontend/tsconfig.json && tsc -p prototypes/local-agent/tsconfig.json && vite build --config frontend/vite.config.ts",
+    "preview": "vite preview --config frontend/vite.config.ts"
   },
   "dependencies": {
     "@floating-ui/react": "^0.27.19",

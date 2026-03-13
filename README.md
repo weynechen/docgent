@@ -1,9 +1,17 @@
 # Writing IDE MVP
 
-A React + Tiptap prototype for a Docs-as-Code AI writing editor. It implements:
+A Docs-as-Code AI writing workspace with a frontend-first product surface and a cloud-oriented backend direction aligned with `full-stack-ai-agent-template`.
+
+Current repository structure:
+
+- `frontend`: active React + Tiptap workspace
+- `desktop`: planned Electron shell
+- `backend`: planned Python backend aligned with the template's layering style
+- `prototypes/local-agent`: transitional local Node rewrite prototype for development
+
+The active prototype currently implements:
 
 - three-panel writing workspace
-- local pi-style rewrite agent backed by `@mariozechner/pi-ai`
 - selection-aware AI rewrite flow with status streaming, diff preview, and accept/reject
 - mock document store with multiple Markdown drafts
 - manual version snapshots, history diff, and restore
@@ -22,7 +30,7 @@ Create a local `.env` first:
 cp .env.example .env
 ```
 
-`npm run dev` loads `.env` automatically for the local agent process.
+`npm run dev` runs `frontend` together with the transitional local prototype agent in `prototypes/local-agent`.
 
 Required environment variables:
 
