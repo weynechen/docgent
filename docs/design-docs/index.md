@@ -14,6 +14,8 @@
   - 当前工作台 UI 结构、关键交互和已验证决策
 - `validation-status.md`
   - 当前 MVP 已验证、部分验证、未验证的设计假设
+- `../superpowers/specs/2026-03-14-notebook-new-and-save-design.md`
+  - Notebook 新建、自动保存、离线缓冲与冲突边界设计
 
 ## 历史输入来源
 
