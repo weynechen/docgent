@@ -65,10 +65,21 @@ interface WorkspaceState {
 }
 
 let activeRewriteStream: (() => void) | undefined;
+let activeChatStream: (() => void) | undefined;
 
 function closeActiveRewriteStream() {
   activeRewriteStream?.();
   activeRewriteStream = undefined;
+}
+
+function closeActiveChatStream() {
+  activeChatStream?.();
+  activeChatStream = undefined;
+}
+
+function closeAllActiveStreams() {
+  closeActiveRewriteStream();
+  closeActiveChatStream();
 }
 
 function createMessageId(prefix: string) {
@@ -120,7 +131,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   async setActiveDoc(path) {
-    closeActiveRewriteStream();
+    closeAllActiveStreams();
     const activeDoc = await remoteDocumentStore.openDoc(path);
     const versions = await localVersionStore.listVersions(path);
     set((state) => ({
@@ -192,7 +203,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   setSelection(selection) {
-    closeActiveRewriteStream();
     set({
       selection,
       currentSuggestion: undefined,
@@ -228,7 +238,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       return;
     }
 
-    closeActiveRewriteStream();
+    closeAllActiveStreams();
     set({
       isGenerating: true,
       notice: undefined,
@@ -306,7 +316,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       return;
     }
 
-    closeActiveRewriteStream();
+    closeAllActiveStreams();
 
     const userMessage: AgentChatMessage = {
       id: createMessageId("user"),
@@ -459,7 +469,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
             });
           },
           onComplete: (event) => {
-            closeActiveRewriteStream();
+            closeActiveChatStream();
             set((state) => ({
               conversationId: event.data.conversation_id ?? state.conversationId,
               chatMessages: state.chatMessages.map((item) =>
@@ -476,7 +486,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
             }));
           },
           onError: (event) => {
-            closeActiveRewriteStream();
+            closeActiveChatStream();
             set((state) => ({
               chatMessages: state.chatMessages.map((item) =>
                 item.id === assistantMessageId
@@ -498,7 +508,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         },
       );
 
-      activeRewriteStream = stream.close;
+      activeChatStream = stream.close;
     } catch (error) {
       set((state) => ({
         chatMessages: state.chatMessages.map((item) =>
@@ -639,7 +649,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       return;
     }
 
-    closeActiveRewriteStream();
+    closeAllActiveStreams();
     const restored = await localVersionStore.restoreVersion(versionId);
     updater(restored.content);
     set((state) => {
