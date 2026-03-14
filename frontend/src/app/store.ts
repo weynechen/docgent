@@ -300,36 +300,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   async sendChatMessage(message) {
-    const { activeDoc, sessionId, selection, conversationId, chatMessages } = get();
+    const { activeDoc, sessionId, selection, conversationId, chatMessages, isGenerating } = get();
     const trimmed = message.trim();
-    if (!activeDoc || !sessionId || !trimmed) {
+    if (!activeDoc || !sessionId || !trimmed || isGenerating) {
       return;
     }
 
     closeActiveRewriteStream();
-
-    let syncedDoc = activeDoc;
-    if (activeDoc.isDirty) {
-      try {
-        syncedDoc = await remoteDocumentStore.saveDoc(
-          activeDoc.path,
-          activeDoc.content,
-          activeDoc.revision,
-        );
-        set((state) => ({
-          activeDoc: syncedDoc,
-          docs: state.docs.map((doc) => (doc.path === syncedDoc.path ? syncedDoc : doc)),
-        }));
-      } catch (error) {
-        set({
-          notice: {
-            message: error instanceof Error ? error.message : "Failed to save document before AI chat.",
-            tone: "error",
-          },
-        });
-        return;
-      }
-    }
 
     const userMessage: AgentChatMessage = {
       id: createMessageId("user"),
@@ -355,6 +332,43 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       agentRunState: "running",
       notice: undefined,
     }));
+
+    let syncedDoc = activeDoc;
+    if (activeDoc.isDirty) {
+      try {
+        syncedDoc = await remoteDocumentStore.saveDoc(
+          activeDoc.path,
+          activeDoc.content,
+          activeDoc.revision,
+        );
+        set((state) => ({
+          activeDoc: syncedDoc,
+          docs: state.docs.map((doc) => (doc.path === syncedDoc.path ? syncedDoc : doc)),
+        }));
+      } catch (error) {
+        set((state) => ({
+          chatMessages: state.chatMessages.map((item) =>
+            item.id === assistantMessageId
+              ? {
+                  ...item,
+                  status: "error",
+                  content:
+                    error instanceof Error
+                      ? error.message
+                      : "Failed to save document before AI chat.",
+                }
+              : item,
+          ),
+          isGenerating: false,
+          agentRunState: "error",
+          notice: {
+            message: error instanceof Error ? error.message : "Failed to save document before AI chat.",
+            tone: "error",
+          },
+        }));
+        return;
+      }
+    }
 
     try {
       const stream = await startAgentChatRun(
