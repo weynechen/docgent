@@ -5,6 +5,7 @@
 - `exec-plans/active/editor-experience-hardening.md`
 - `exec-plans/active/template-aligned-backend-migration.md`
 - `exec-plans/active/agentic-chat-and-autonomous-editing.md`
+- `exec-plans/active/notebook-new-save-and-sync.md`
 
 ## 已完成计划
 
