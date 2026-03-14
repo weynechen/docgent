@@ -166,6 +166,8 @@ async def agent_websocket(
                 assistant = get_agent(
                     system_prompt=build_workspace_chat_system_prompt(
                         active_doc_path=doc_path,
+                        selection_start=selection.get("start") if isinstance(selection, dict) else None,
+                        selection_end=selection.get("end") if isinstance(selection, dict) else None,
                         selection_text=selection.get("text") if isinstance(selection, dict) else None,
                     ),
                     tools=create_workspace_tools(

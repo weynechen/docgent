@@ -208,9 +208,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       currentSuggestion: undefined,
       activeRunId: undefined,
       agentStatusTrail: [],
-      toolEvents: [],
-      agentRunState: "idle",
-      isGenerating: false,
     });
   },
 

@@ -79,6 +79,25 @@ function App() {
     return selection.text.split(/\n/).filter((line) => line.trim()).length;
   }, [selection?.text]);
 
+  const latestAssistantMessageIndex = useMemo(() => {
+    for (let index = chatMessages.length - 1; index >= 0; index -= 1) {
+      if (chatMessages[index]?.role === "assistant") {
+        return index;
+      }
+    }
+
+    return -1;
+  }, [chatMessages]);
+
+  const shouldShowToolActivityBeforeLatestAssistant =
+    toolEvents.length > 0 && latestAssistantMessageIndex >= 0;
+  const messagesBeforeToolActivity = shouldShowToolActivityBeforeLatestAssistant
+    ? chatMessages.slice(0, latestAssistantMessageIndex)
+    : chatMessages;
+  const messagesAfterToolActivity = shouldShowToolActivityBeforeLatestAssistant
+    ? chatMessages.slice(latestAssistantMessageIndex)
+    : [];
+
   const editor = useEditor({
     extensions: createSimpleEditorExtensions(),
     content: activeDoc ? markdownToDoc(activeDoc.content) : undefined,
@@ -463,7 +482,7 @@ function App() {
               </div>
             ) : null}
 
-            {chatMessages.map((message) => (
+            {messagesBeforeToolActivity.map((message) => (
               <div
                 className={message.role === "user" ? "flex justify-end" : "flex justify-start"}
                 key={message.id}
@@ -509,6 +528,28 @@ function App() {
                 </div>
               </div>
             ) : null}
+
+            {messagesAfterToolActivity.map((message) => (
+              <div
+                className={message.role === "user" ? "flex justify-end" : "flex justify-start"}
+                key={message.id}
+              >
+                <div
+                  className={
+                    message.role === "user"
+                      ? "max-w-[88%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-xs text-white shadow-sm"
+                      : "max-w-[88%] rounded-2xl rounded-bl-sm border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 shadow-sm"
+                  }
+                >
+                  <p className="whitespace-pre-wrap leading-relaxed">
+                    {message.content || (message.status === "streaming" ? "Thinking..." : "")}
+                  </p>
+                  <p className="mt-2 text-[10px] opacity-70">
+                    {message.status === "streaming" ? "Streaming..." : new Date(message.createdAt).toLocaleTimeString()}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
