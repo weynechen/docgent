@@ -26,3 +26,17 @@
 - 修改功能前，先确认是否已有相关计划、规格或技术债记录。
 - 完成较大改动后，更新对应文档、索引和质量评分。
 - 生成式内容、外部模板和参考资料放在 `docs/references/`，不要把它们误当成产品真相来源。
+
+## 测试方式
+- 使用chrome mcp可以直接访问，用户会手动启动chrome浏览器
+```bash
+  google-chrome-stable \
+    --remote-debugging-port=9222 \
+    --user-data-dir=/tmp/chrome-codex-mcp \
+    --no-first-run \
+    --no-default-browser-check \
+    --ozone-platform=wayland
+```
+
+- 使用http://localhost:5173/ 地址进行访问
+
