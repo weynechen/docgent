@@ -31,6 +31,7 @@ function App() {
     loadNotebooks,
     createNotebook,
     createItem,
+    createSource,
     setActiveNotebook,
     setActiveItem,
     updateActiveItemContent,
@@ -190,6 +191,29 @@ function App() {
     await sendChatMessage(nextMessage);
   };
 
+  const handleCreateSource = async () => {
+    const sourceUrl = window.prompt("Paste an external link to attach to this notebook.");
+    if (!sourceUrl) {
+      return;
+    }
+
+    let normalizedUrl: string;
+    try {
+      normalizedUrl = new URL(sourceUrl).toString();
+    } catch {
+      window.alert("Please enter a valid URL.");
+      return;
+    }
+
+    const defaultTitle = normalizedUrl.replace(/^https?:\/\//, "");
+    const title = window.prompt("Give this source a short title.", defaultTitle)?.trim() || defaultTitle;
+    await createSource({
+      type: "external_link",
+      title,
+      sourceUrl: normalizedUrl,
+    });
+  };
+
   const handleReloadConflict = async () => {
     if (!activeConflict) {
       return;
@@ -216,6 +240,7 @@ function App() {
               notebooks={notebooks}
               onCreateItem={(type) => void createItem(type)}
               onCreateNotebook={() => void createNotebook()}
+              onCreateSource={() => void handleCreateSource()}
               onSelectItem={setActiveItem}
               onSelectNotebook={setActiveNotebook}
             />

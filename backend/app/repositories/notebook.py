@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.db.models.notebook import Notebook
 from app.db.models.notebook_item import NotebookItem
+from app.db.models.notebook_source import NotebookSource
 
 
 async def create_notebook(db: AsyncSession, *, title: str) -> Notebook:
@@ -27,7 +28,7 @@ async def list_notebooks(db: AsyncSession) -> list[Notebook]:
 
     query: Select[tuple[Notebook]] = (
         select(Notebook)
-        .options(selectinload(Notebook.items))
+        .options(selectinload(Notebook.items), selectinload(Notebook.sources))
         .order_by(Notebook.updated_at.desc().nullslast(), Notebook.created_at.desc())
     )
     result = await db.execute(query)
@@ -40,7 +41,7 @@ async def get_notebook_with_items(db: AsyncSession, notebook_id: UUID) -> Notebo
     query = (
         select(Notebook)
         .where(Notebook.id == notebook_id)
-        .options(selectinload(Notebook.items))
+        .options(selectinload(Notebook.items), selectinload(Notebook.sources))
     )
     result = await db.execute(query)
     return result.scalar_one_or_none()
@@ -103,3 +104,27 @@ async def update_item(
     await db.flush()
     await db.refresh(item)
     return item
+
+
+async def create_source(
+    db: AsyncSession,
+    *,
+    notebook_id: UUID,
+    type: str,
+    title: str,
+    source_url: str | None = None,
+    mime_type: str | None = None,
+) -> NotebookSource:
+    """Create a source metadata row for a notebook."""
+
+    source = NotebookSource(
+        notebook_id=notebook_id,
+        type=type,
+        title=title,
+        source_url=source_url,
+        mime_type=mime_type,
+    )
+    db.add(source)
+    await db.flush()
+    await db.refresh(source)
+    return source

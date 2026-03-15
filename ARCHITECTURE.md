@@ -28,10 +28,11 @@
 ### 前端领域与表达层
 
 - `frontend/src/notebooks/`
-  - `remoteNotebookStore.ts`：notebook/item 远端接口
+  - `remoteNotebookStore.ts`：notebook/item/source 远端接口
   - `indexedDb.ts`：本地待同步编辑缓冲
   - `syncEngine.ts`：debounce、离线重放与冲突状态机
   - `NotebookConflictBanner.tsx`：冲突恢复横幅
+  - `NotebookSidebar.tsx`：notebook items 与 sources 双分区侧栏
 - `frontend/src/ai/`
   - `provider.ts`：前端 AI provider，负责启动 notebook-aware chat 请求并订阅 WebSocket 事件
 - `frontend/src/shared/`
@@ -60,9 +61,9 @@
 ### 已落地 notebook 路径
 
 - `backend/app/api/routes/v1/notebooks.py`
-  - 提供 notebook 与 notebook item 的创建、读取和更新接口
+  - 提供 notebook、notebook item 与 notebook source 的创建、读取和更新接口
 - `backend/app/services/notebook.py`
-  - 负责 notebook/item 生命周期与 revision 冲突校验
+  - 负责 notebook/item/source 生命周期与 revision 冲突校验
 - `backend/app/agents/tools/notebook_tools.py`
   - 提供 notebook scoped 的 `ListItems` / `Read` / `Write` / `WebSearch`
 - `backend/app/api/routes/v1/agent.py`
@@ -95,6 +96,7 @@
 ## 当前边界
 
 - notebook 数据库域已是正式真相源；旧临时 workspace 仍存在，但不再是主编辑路径
+- notebook sources 当前仍是 metadata lane：external link 已落地，imported file 还没有真实文件存储与提取
 - 版本系统是应用内快照，不是 Git
 - 当前 AI 改写与 notebook chat 都已切到模板化 Python backend；仍未接入持久化任务队列
 - 冲突恢复已具备基础 UX，但还没有更复杂的 diff / merge 辅助
@@ -103,7 +105,7 @@
 
 ## 后续演进
 
-1. 为 notebook item 扩展外链资料与文件导入类型。
+1. 为 notebook source 补齐 imported file 的真实上传、存储和提取流程。
 2. 为冲突恢复补充浏览器级回归、差异预览和更细粒度状态反馈。
 3. 将 rewrite run / agent run 从内存态扩展到可持久化或可恢复的任务模型。
 4. 在模板后端中继续接入文档、版本与用户域能力，而不是额外再迁一次模板。

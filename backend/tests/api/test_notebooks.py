@@ -30,6 +30,29 @@ def make_item(*, item_id=None, notebook_id=None, item_type="draft", title="Untit
     )
 
 
+def make_source(
+    *,
+    source_id=None,
+    notebook_id=None,
+    source_type="external_link",
+    title="Reference link",
+    source_url="https://example.com/reference",
+    mime_type=None,
+):
+    """Create a mock notebook source."""
+
+    return SimpleNamespace(
+        id=source_id or uuid4(),
+        notebook_id=notebook_id or uuid4(),
+        type=source_type,
+        title=title,
+        source_url=source_url,
+        mime_type=mime_type,
+        created_at=datetime.now(UTC),
+        updated_at=None,
+    )
+
+
 def make_notebook(*, notebook_id=None, title="Untitled notebook", items=None):
     """Create a mock notebook."""
 
@@ -37,6 +60,7 @@ def make_notebook(*, notebook_id=None, title="Untitled notebook", items=None):
         id=notebook_id or uuid4(),
         title=title,
         items=list(items or []),
+        sources=[],
         created_at=datetime.now(UTC),
         updated_at=None,
     )
@@ -49,6 +73,7 @@ def mock_notebook_service() -> MagicMock:
     notebook = make_notebook()
     notebook_item = make_item(notebook_id=notebook.id)
     notebook.items = [notebook_item]
+    notebook.sources = [make_source(notebook_id=notebook.id)]
 
     updated_item = make_item(
         item_id=notebook_item.id,
@@ -62,6 +87,7 @@ def mock_notebook_service() -> MagicMock:
     service.list_notebooks = AsyncMock(return_value=[notebook])
     service.get_notebook = AsyncMock(return_value=notebook)
     service.create_item = AsyncMock(return_value=notebook_item)
+    service.create_source = AsyncMock(return_value=notebook.sources[0])
     service.update_item = AsyncMock(return_value=updated_item)
     return service
 
@@ -143,6 +169,26 @@ async def test_update_notebook_item(client_with_mock_notebook_service: AsyncClie
     assert response.status_code == 200
     data = response.json()
     assert data["serverRevision"] == 2
+
+
+@pytest.mark.anyio
+async def test_create_notebook_source(client_with_mock_notebook_service: AsyncClient):
+    """Creating a notebook source should return external link metadata."""
+
+    notebook_id = uuid4()
+    response = await client_with_mock_notebook_service.post(
+        f"{settings.API_V1_STR}/notebooks/{notebook_id}/sources",
+        json={
+            "type": "external_link",
+            "title": "Reference link",
+            "sourceUrl": "https://example.com/reference",
+        },
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["type"] == "external_link"
+    assert data["sourceUrl"] == "https://example.com/reference"
 
 
 @pytest.mark.anyio

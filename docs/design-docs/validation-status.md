@@ -13,6 +13,7 @@
 - notebook 冲突恢复的第一版交互已落地：顶部横幅 + 恢复服务端 + 另存本地副本，这条恢复路径是清晰的
 - notebook 冲突恢复流程已经完成浏览器级手工回归：真实 `REVISION_CONFLICT` 会进入 `conflict` 状态，AI 输入被禁用，两个恢复动作都能恢复到一致状态
 - React 开发态下 notebook 首次加载的并发创建问题已修复，store 层已增加并发去重回归测试
+- notebook 已具备第一版 source lane：可登记 external link，并在刷新后稳定回显，说明“正文 item / 资料 source”双通道结构可成立
 
 ## 部分验证
 
@@ -28,5 +29,5 @@
 - 外部文件冲突处理
 - Git 深度集成
 - 长文档与大纲级结构编辑性能
-- 外链资料与文件导入后的 notebook 扩展模型
+- imported file 的真实上传、存储与引用链路
 - agent 工具集在真实 notebook/workspace 上的安全边界与可用性

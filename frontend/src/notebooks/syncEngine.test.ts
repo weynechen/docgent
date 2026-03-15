@@ -50,10 +50,20 @@ describe("notebook persistence", () => {
     const savedItems: NotebookItemRecord[] = [];
     const item = makeItem();
     const remoteStore: NotebookStoreApi = {
-      getNotebook: async () => ({ id: "nb-1", title: "Notebook", createdAt: "", updatedAt: "", items: [item] }),
+      getNotebook: async () => ({ id: "nb-1", title: "Notebook", createdAt: "", updatedAt: null, sources: [], items: [item] }),
       listNotebooks: async () => [],
-      createNotebook: async () => ({ id: "nb-1", title: "Notebook", createdAt: "", updatedAt: "", items: [] }),
+      createNotebook: async () => ({ id: "nb-1", title: "Notebook", createdAt: "", updatedAt: null, sources: [], items: [] }),
       createItem: async () => item,
+      createSource: async () => ({
+        id: "source-1",
+        notebookId: "nb-1",
+        type: "external_link",
+        title: "Reference link",
+        sourceUrl: "https://example.com/reference",
+        mimeType: null,
+        createdAt: "",
+        updatedAt: null,
+      }),
       updateItem: async () => ({
         ...item,
         content: "Draft updated",
@@ -88,10 +98,20 @@ describe("notebook persistence", () => {
     const conflicts: string[] = [];
     const item = makeItem();
     const remoteStore: NotebookStoreApi = {
-      getNotebook: async () => ({ id: "nb-1", title: "Notebook", createdAt: "", updatedAt: "", items: [item] }),
+      getNotebook: async () => ({ id: "nb-1", title: "Notebook", createdAt: "", updatedAt: null, sources: [], items: [item] }),
       listNotebooks: async () => [],
-      createNotebook: async () => ({ id: "nb-1", title: "Notebook", createdAt: "", updatedAt: "", items: [] }),
+      createNotebook: async () => ({ id: "nb-1", title: "Notebook", createdAt: "", updatedAt: null, sources: [], items: [] }),
       createItem: async () => item,
+      createSource: async () => ({
+        id: "source-1",
+        notebookId: "nb-1",
+        type: "external_link",
+        title: "Reference link",
+        sourceUrl: "https://example.com/reference",
+        mimeType: null,
+        createdAt: "",
+        updatedAt: null,
+      }),
       updateItem: async () => {
         throw Object.assign(
           new Error("Notebook item revision is outdated. Reload the latest item before saving."),

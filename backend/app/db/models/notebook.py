@@ -23,6 +23,12 @@ class Notebook(Base, TimestampMixin):
         cascade="all, delete-orphan",
         order_by="NotebookItem.order_index",
     )
+    sources: Mapped[list["NotebookSource"]] = relationship(
+        "NotebookSource",
+        back_populates="notebook",
+        cascade="all, delete-orphan",
+        order_by="NotebookSource.created_at.desc()",
+    )
 
     def __repr__(self) -> str:
         return f"<Notebook(id={self.id}, title={self.title})>"

@@ -11,6 +11,8 @@ from app.schemas.notebook import (
     NotebookItemRead,
     NotebookItemUpdate,
     NotebookRead,
+    NotebookSourceCreate,
+    NotebookSourceRead,
 )
 
 router = APIRouter(prefix="/notebooks")
@@ -58,6 +60,23 @@ async def create_notebook_item(
         item_type=payload.type,
         title=payload.title,
         content=payload.content,
+    )
+
+
+@router.post("/{notebook_id}/sources", response_model=NotebookSourceRead, status_code=status.HTTP_201_CREATED)
+async def create_notebook_source(
+    notebook_id: UUID,
+    payload: NotebookSourceCreate,
+    notebook_service: NotebookSvc,
+) -> NotebookSourceRead:
+    """Create one notebook source."""
+
+    return await notebook_service.create_source(
+        notebook_id=notebook_id,
+        source_type=payload.type,
+        title=payload.title,
+        source_url=payload.source_url,
+        mime_type=payload.mime_type,
     )
 
 

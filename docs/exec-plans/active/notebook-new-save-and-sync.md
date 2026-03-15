@@ -29,7 +29,11 @@
 - 已修复两个真实回归问题：
   - notebook Alembic 迁移 revision 标识不合法，导致线上运行环境无法建表
   - React 开发态首次加载时 `loadNotebooks()` 并发执行，可能重复创建 notebook
-- 当前未完成项主要是外链/导入扩展实现，以及更系统的 AI 质量回归
+- 已完成第一版 notebook source lane：
+  - backend 已新增 `notebook_sources` 元数据表与创建接口
+  - frontend 侧栏已新增 Sources 分区，并支持登记 external link
+  - 浏览器回归已确认 source 可创建、可刷新后回显
+- 当前未完成项主要是 imported file 的真实上传与处理链路，以及更系统的 AI 质量回归
 
 ---
 

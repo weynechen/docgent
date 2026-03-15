@@ -1,4 +1,4 @@
-import { BookOpenText, FilePenLine, FileText, FolderPen, NotebookPen, Plus } from "lucide-react";
+import { BookOpenText, FilePenLine, FileText, FolderPen, Link2, NotebookPen, Plus } from "lucide-react";
 
 import type { NotebookRecord } from "./types";
 
@@ -8,6 +8,7 @@ interface NotebookSidebarProps {
   activeItemId?: string;
   onCreateNotebook: () => void;
   onCreateItem: (type: "draft" | "note") => void;
+  onCreateSource: () => void;
   onSelectNotebook: (notebookId: string) => void;
   onSelectItem: (itemId: string) => void;
 }
@@ -18,6 +19,7 @@ export function NotebookSidebar({
   activeItemId,
   onCreateNotebook,
   onCreateItem,
+  onCreateSource,
   onSelectNotebook,
   onSelectItem,
 }: NotebookSidebarProps) {
@@ -111,6 +113,44 @@ export function NotebookSidebar({
                   </div>
                 </button>
               ))}
+            </div>
+          </section>
+        ) : null}
+
+        {activeNotebook ? (
+          <section className="mt-6">
+            <div className="mb-2 flex items-center justify-between px-1">
+              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Sources</span>
+              <button
+                className="rounded-md p-1 text-slate-400 transition hover:bg-slate-200 hover:text-slate-700"
+                onClick={onCreateSource}
+                title="Add external link"
+                type="button"
+              >
+                <Link2 size={14} />
+              </button>
+            </div>
+            <div className="space-y-1">
+              {activeNotebook.sources.length > 0 ? (
+                activeNotebook.sources.map((source) => (
+                  <div
+                    className="flex items-start gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2"
+                    key={source.id}
+                  >
+                    <Link2 size={14} className="mt-0.5 shrink-0 text-slate-400" />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-700">{source.title}</p>
+                      <p className="truncate text-[10px] text-slate-400">
+                        {source.type === "external_link" ? source.sourceUrl ?? "External link" : source.title}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-white/70 px-3 py-3 text-[11px] text-slate-400">
+                  Add links now. File imports will attach to the same source lane later.
+                </div>
+              )}
             </div>
           </section>
         ) : null}

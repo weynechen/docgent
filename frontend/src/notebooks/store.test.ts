@@ -2,7 +2,20 @@ import { describe, expect, it, vi } from "vitest";
 
 import { readPendingEdits } from "./indexedDb";
 import { createNotebookStore } from "./store";
-import type { NotebookRecord, NotebookStoreApi } from "./types";
+import type { NotebookRecord, NotebookSourceRecord, NotebookStoreApi } from "./types";
+
+function makeSource(notebookId: string, sourceId = "source-1"): NotebookSourceRecord {
+  return {
+    id: sourceId,
+    notebookId,
+    type: "external_link",
+    title: "Reference link",
+    sourceUrl: "https://example.com/reference",
+    mimeType: null,
+    createdAt: "2026-03-14T00:00:00.000Z",
+    updatedAt: null,
+  };
+}
 
 function makeNotebook(id: string, itemId: string): NotebookRecord {
   return {
@@ -10,6 +23,7 @@ function makeNotebook(id: string, itemId: string): NotebookRecord {
     title: "Untitled notebook",
     createdAt: "2026-03-14T00:00:00.000Z",
     updatedAt: "2026-03-14T00:00:00.000Z",
+    sources: [],
     items: [
       {
         id: itemId,
@@ -34,6 +48,7 @@ describe("notebook store", () => {
       getNotebook: async () => notebook,
       createNotebook: async () => notebook,
       createItem: async () => notebook.items[0],
+      createSource: async () => makeSource(notebook.id),
       updateItem: async () => notebook.items[0],
     };
 
@@ -53,6 +68,7 @@ describe("notebook store", () => {
       getNotebook: async () => notebook,
       createNotebook,
       createItem: async () => notebook.items[0],
+      createSource: async () => makeSource(notebook.id),
       updateItem: async () => notebook.items[0],
     };
 
@@ -86,6 +102,7 @@ describe("notebook store", () => {
       getNotebook: async () => notebook,
       createNotebook: async () => notebook,
       createItem: async () => notebook.items[0],
+      createSource: async () => makeSource(notebook.id),
       updateItem: async () => notebook.items[0],
     };
 
@@ -104,6 +121,7 @@ describe("notebook store", () => {
       getNotebook: async () => notebook,
       createNotebook: async () => notebook,
       createItem: async () => notebook.items[0],
+      createSource: async () => makeSource(notebook.id),
       updateItem: async () => notebook.items[0],
     };
 
@@ -122,6 +140,7 @@ describe("notebook store", () => {
       getNotebook: async () => notebook,
       createNotebook: async () => notebook,
       createItem: async () => notebook.items[0],
+      createSource: async () => makeSource(notebook.id),
       updateItem: async () => ({
         ...notebook.items[0],
         content: "# Draft synced",
@@ -195,6 +214,7 @@ describe("notebook store", () => {
       getNotebook: async () => remoteNotebook,
       createNotebook: async () => notebook,
       createItem: async () => notebook.items[0],
+      createSource: async () => makeSource(notebook.id),
       updateItem: async () => {
         throw new Error("REVISION_CONFLICT");
       },
@@ -251,6 +271,7 @@ describe("notebook store", () => {
         };
         return item;
       }),
+      createSource: async () => makeSource(notebook.id),
       updateItem: async () => {
         throw new Error("REVISION_CONFLICT");
       },
@@ -274,5 +295,35 @@ describe("notebook store", () => {
     expect(store.getState().activeItem?.content).toBe("# Local conflict");
     expect(store.getState().activeNotebook?.items).toHaveLength(2);
     expect(await readPendingEdits("nb-1")).toHaveLength(0);
+  });
+
+  it("registers an external link source on the active notebook", async () => {
+    const notebook = makeNotebook("nb-1", "item-1");
+    const source = makeSource(notebook.id);
+    const createSource = vi.fn(async () => source);
+    const remoteStore: NotebookStoreApi = {
+      listNotebooks: async () => [notebook],
+      getNotebook: async () => notebook,
+      createNotebook: async () => notebook,
+      createItem: async () => notebook.items[0],
+      createSource,
+      updateItem: async () => notebook.items[0],
+    };
+
+    const store = createNotebookStore(remoteStore);
+    await store.getState().loadNotebooks();
+    await store.getState().createSource({
+      type: "external_link",
+      title: "Reference link",
+      sourceUrl: "https://example.com/reference",
+    });
+
+    expect(createSource).toHaveBeenCalledWith({
+      notebookId: "nb-1",
+      type: "external_link",
+      title: "Reference link",
+      sourceUrl: "https://example.com/reference",
+    });
+    expect(store.getState().activeNotebook?.sources).toEqual([source]);
   });
 });

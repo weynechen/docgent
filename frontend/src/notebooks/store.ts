@@ -9,7 +9,13 @@ import type {
   SelectionContext,
 } from "../shared/types";
 import { deletePendingEdit, readPendingEdits } from "./indexedDb";
-import type { NotebookItemRecord, NotebookRecord, NotebookStoreApi, NotebookSyncState } from "./types";
+import type {
+  NotebookItemRecord,
+  NotebookRecord,
+  NotebookSourceRecord,
+  NotebookStoreApi,
+  NotebookSyncState,
+} from "./types";
 import { remoteNotebookStore } from "./remoteNotebookStore";
 import { createNotebookSyncEngine } from "./syncEngine";
 
@@ -43,6 +49,12 @@ export interface NotebookStoreState {
   loadNotebooks: () => Promise<void>;
   createNotebook: () => Promise<void>;
   createItem: (type: "draft" | "note") => Promise<void>;
+  createSource: (input: {
+    type: "external_link" | "imported_file";
+    title: string;
+    sourceUrl?: string;
+    mimeType?: string;
+  }) => Promise<void>;
   setActiveNotebook: (notebookId: string) => void;
   setActiveItem: (itemId: string) => void;
   updateActiveItemContent: (content: string) => void;
@@ -180,6 +192,23 @@ function createNotebookState(remoteStore: NotebookStoreApi, aiClient: NotebookAi
       };
     };
 
+    const mergeSource = (source: NotebookSourceRecord) => {
+      const current = get();
+      const notebook = current.notebooks.find((entry) => entry.id === source.notebookId);
+      if (!notebook) {
+        return;
+      }
+
+      const updatedNotebook: NotebookRecord = {
+        ...notebook,
+        sources: [source, ...notebook.sources.filter((entry) => entry.id !== source.id)],
+      };
+      set({
+        notebooks: current.notebooks.map((entry) => (entry.id === updatedNotebook.id ? updatedNotebook : entry)),
+        activeNotebook: current.activeNotebook?.id === updatedNotebook.id ? updatedNotebook : current.activeNotebook,
+      });
+    };
+
     const loadNotebook = async (notebookId: string) => {
       return await remoteStore.getNotebook(notebookId);
     };
@@ -261,6 +290,22 @@ function createNotebookState(remoteStore: NotebookStoreApi, aiClient: NotebookAi
           activeItem: item,
           ...resetChatState(),
         }));
+      },
+
+      async createSource(input) {
+        const notebook = get().activeNotebook;
+        if (!notebook) {
+          return;
+        }
+
+        const source = await remoteStore.createSource({
+          notebookId: notebook.id,
+          type: input.type,
+          title: input.title,
+          sourceUrl: input.sourceUrl,
+          mimeType: input.mimeType,
+        });
+        mergeSource(source);
       },
 
       setActiveNotebook(notebookId) {

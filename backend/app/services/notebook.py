@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.db.models.notebook import Notebook
 from app.db.models.notebook_item import NotebookItem
+from app.db.models.notebook_source import NotebookSource
 from app.repositories import notebook as notebook_repo
 
 
@@ -63,6 +64,32 @@ class NotebookService:
         )
         await self.db.commit()
         return item
+
+    async def create_source(
+        self,
+        *,
+        notebook_id: UUID,
+        source_type: str,
+        title: str,
+        source_url: str | None = None,
+        mime_type: str | None = None,
+    ) -> NotebookSource:
+        """Create a notebook source for future reference ingestion."""
+
+        await self._get_notebook(notebook_id)
+        if source_type == "external_link" and not source_url:
+            raise BadRequestError(message="External links require a source URL.", code="SOURCE_URL_REQUIRED")
+
+        source = await notebook_repo.create_source(
+            self.db,
+            notebook_id=notebook_id,
+            type=source_type,
+            title=title,
+            source_url=source_url,
+            mime_type=mime_type,
+        )
+        await self.db.commit()
+        return source
 
     async def get_item(self, item_id: UUID) -> NotebookItem:
         """Get one notebook item."""

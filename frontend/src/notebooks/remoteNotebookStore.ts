@@ -1,4 +1,4 @@
-import type { NotebookItemRecord, NotebookStoreApi, NotebookRecord } from "./types";
+import type { NotebookItemRecord, NotebookSourceRecord, NotebookStoreApi, NotebookRecord } from "./types";
 
 class NotebookApiError extends Error {
   code?: string;
@@ -31,16 +31,33 @@ function toItem(item: Omit<NotebookItemRecord, "isDirty">): NotebookItemRecord {
   };
 }
 
-function toNotebook(notebook: Omit<NotebookRecord, "items"> & { items: Array<Omit<NotebookItemRecord, "isDirty">> }): NotebookRecord {
+function toSource(source: NotebookSourceRecord): NotebookSourceRecord {
+  return source;
+}
+
+function toNotebook(
+  notebook: Omit<NotebookRecord, "items" | "sources"> & {
+    items: Array<Omit<NotebookItemRecord, "isDirty">>;
+    sources: NotebookSourceRecord[];
+  },
+): NotebookRecord {
   return {
     ...notebook,
+    sources: notebook.sources.map(toSource),
     items: notebook.items.map(toItem),
   };
 }
 
 export const remoteNotebookStore: NotebookStoreApi = {
   async listNotebooks() {
-    const notebooks = await requestJson<Array<Omit<NotebookRecord, "items"> & { items: Array<Omit<NotebookItemRecord, "isDirty">> }>>(
+    const notebooks = await requestJson<
+      Array<
+        Omit<NotebookRecord, "items" | "sources"> & {
+          items: Array<Omit<NotebookItemRecord, "isDirty">>;
+          sources: NotebookSourceRecord[];
+        }
+      >
+    >(
       "/api/v1/notebooks",
       { method: "GET" },
       "Failed to load notebooks.",
@@ -49,7 +66,12 @@ export const remoteNotebookStore: NotebookStoreApi = {
   },
 
   async getNotebook(notebookId) {
-    const notebook = await requestJson<Omit<NotebookRecord, "items"> & { items: Array<Omit<NotebookItemRecord, "isDirty">> }>(
+    const notebook = await requestJson<
+      Omit<NotebookRecord, "items" | "sources"> & {
+        items: Array<Omit<NotebookItemRecord, "isDirty">>;
+        sources: NotebookSourceRecord[];
+      }
+    >(
       `/api/v1/notebooks/${notebookId}`,
       { method: "GET" },
       "Failed to load notebook.",
@@ -58,7 +80,12 @@ export const remoteNotebookStore: NotebookStoreApi = {
   },
 
   async createNotebook() {
-    const notebook = await requestJson<Omit<NotebookRecord, "items"> & { items: Array<Omit<NotebookItemRecord, "isDirty">> }>(
+    const notebook = await requestJson<
+      Omit<NotebookRecord, "items" | "sources"> & {
+        items: Array<Omit<NotebookItemRecord, "isDirty">>;
+        sources: NotebookSourceRecord[];
+      }
+    >(
       "/api/v1/notebooks",
       {
         method: "POST",
@@ -90,6 +117,26 @@ export const remoteNotebookStore: NotebookStoreApi = {
       "Failed to create notebook item.",
     );
     return toItem(item);
+  },
+
+  async createSource(input) {
+    const source = await requestJson<NotebookSourceRecord>(
+      `/api/v1/notebooks/${input.notebookId}/sources`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: input.type,
+          title: input.title,
+          sourceUrl: input.sourceUrl,
+          mimeType: input.mimeType,
+        }),
+      },
+      "Failed to create notebook source.",
+    );
+    return toSource(source);
   },
 
   async updateItem(input) {

@@ -17,6 +17,7 @@ def make_notebook(*, notebook_id=None, title="Untitled notebook", items=None):
         id=notebook_id or uuid4(),
         title=title,
         items=list(items or []),
+        sources=[],
     )
 
 
@@ -38,6 +39,27 @@ def make_item(
         title=title,
         content=content,
         server_revision=server_revision,
+    )
+
+
+def make_source(
+    *,
+    source_id=None,
+    notebook_id=None,
+    source_type="external_link",
+    title="Reference link",
+    source_url="https://example.com/reference",
+    mime_type=None,
+):
+    """Create a simple notebook source for service tests."""
+
+    return SimpleNamespace(
+        id=source_id or uuid4(),
+        notebook_id=notebook_id or uuid4(),
+        type=source_type,
+        title=title,
+        source_url=source_url,
+        mime_type=mime_type,
     )
 
 
@@ -103,3 +125,29 @@ class TestNotebookService:
                 )
 
         assert exc.value.code == "REVISION_CONFLICT"
+
+    @pytest.mark.anyio
+    async def test_create_source_registers_external_link_metadata(
+        self,
+        notebook_service: NotebookService,
+    ) -> None:
+        """Creating a source should persist external link metadata on the notebook."""
+
+        notebook = make_notebook()
+        source = make_source(notebook_id=notebook.id)
+
+        with patch("app.services.notebook.notebook_repo") as mock_repo:
+            mock_repo.get_notebook_with_items = AsyncMock(return_value=notebook)
+            mock_repo.create_source = AsyncMock(return_value=source)
+
+            result = await notebook_service.create_source(
+                notebook_id=notebook.id,
+                source_type="external_link",
+                title="Reference link",
+                source_url="https://example.com/reference",
+            )
+
+        assert result.type == "external_link"
+        assert result.source_url == "https://example.com/reference"
+        mock_repo.create_source.assert_awaited_once()
+        notebook_service.db.commit.assert_awaited_once()

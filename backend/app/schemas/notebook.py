@@ -18,6 +18,28 @@ class NotebookItemBase(BaseSchema):
     content_format: Literal["markdown"] = Field(default="markdown", alias="contentFormat")
 
 
+class NotebookSourceBase(BaseSchema):
+    """Shared notebook source fields."""
+
+    type: Literal["external_link", "imported_file"]
+    title: str = Field(min_length=1, max_length=255)
+    source_url: str | None = Field(default=None, alias="sourceUrl", max_length=2048)
+    mime_type: str | None = Field(default=None, alias="mimeType", max_length=255)
+
+
+class NotebookSourceCreate(NotebookSourceBase):
+    """Request payload for creating a notebook source."""
+
+    pass
+
+
+class NotebookSourceRead(NotebookSourceBase, TimestampSchema):
+    """Notebook source returned by the API."""
+
+    id: UUID
+    notebook_id: UUID = Field(alias="notebookId")
+
+
 class NotebookItemCreate(NotebookItemBase):
     """Request payload for creating a notebook item."""
 
@@ -52,6 +74,7 @@ class NotebookRead(BaseSchema, TimestampSchema):
 
     id: UUID
     title: str
+    sources: list[NotebookSourceRead]
     items: list[NotebookItemRead]
 
 
@@ -60,4 +83,5 @@ class NotebookListItem(BaseSchema, TimestampSchema):
 
     id: UUID
     title: str
+    sources: list[NotebookSourceRead]
     items: list[NotebookItemRead]
