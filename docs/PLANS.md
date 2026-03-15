@@ -11,7 +11,7 @@
 
 - notebook-first 编辑主链路已落地：新建 notebook、draft/note item、自动保存、本地离线缓冲
 - 右侧 AI Chat 已切到 notebook/item 上下文，支持读取当前 item、列出 notebook items、直接写回当前 item
-- 剩余重点转向真实浏览器回归、冲突体验打磨，以及外链/导入扩展能力
+- notebook 冲突恢复已完成浏览器级回归，剩余重点转向外链/导入扩展能力与 AI 质量打磨
 
 ## 已完成计划
 

@@ -1,6 +1,6 @@
 """Create notebook persistence tables.
 
-Revision ID: 2026-03-14_create_notebooks_and_notebook_items
+Revision ID: 20260314_notebooks
 Revises: 20260313_initial_schema
 Create Date: 2026-03-14 23:50:00
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "2026-03-14_create_notebooks_and_notebook_items"
+revision: str = "20260314_notebooks"
 down_revision: str | None = "20260313_initial_schema"
 branch_labels: Sequence[str] | None = None
 depends_on: Sequence[str] | None = None

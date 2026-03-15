@@ -21,7 +21,15 @@
   - 默认主动作 `Reload server version`
   - 次动作 `Keep local as new copy`
   - 冲突 item 在处理前锁定编辑和 AI 输入
-- 当前未完成项主要是浏览器手工回归，以及外链/导入扩展实现
+- 已完成浏览器级手工回归：
+  - 真实 `REVISION_CONFLICT` 会进入 `conflict` 状态，而不是落到泛化 `sync_failed`
+  - `Reload server version` 会经确认后恢复服务端内容
+  - `Keep local as new copy` 会创建 recovered draft 并切换到新 item
+  - AI 输入会在冲突期间禁用，并在恢复后恢复
+- 已修复两个真实回归问题：
+  - notebook Alembic 迁移 revision 标识不合法，导致线上运行环境无法建表
+  - React 开发态首次加载时 `loadNotebooks()` 并发执行，可能重复创建 notebook
+- 当前未完成项主要是外链/导入扩展实现，以及更系统的 AI 质量回归
 
 ---
 

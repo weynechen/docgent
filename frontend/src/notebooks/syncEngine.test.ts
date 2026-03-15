@@ -93,7 +93,10 @@ describe("notebook persistence", () => {
       createNotebook: async () => ({ id: "nb-1", title: "Notebook", createdAt: "", updatedAt: "", items: [] }),
       createItem: async () => item,
       updateItem: async () => {
-        throw new Error("REVISION_CONFLICT");
+        throw Object.assign(
+          new Error("Notebook item revision is outdated. Reload the latest item before saving."),
+          { code: "REVISION_CONFLICT" },
+        );
       },
     };
     const engine = createNotebookSyncEngine({

@@ -45,6 +45,24 @@ describe("notebook store", () => {
     expect(store.getState().activeItem?.type).toBe("draft");
   });
 
+  it("deduplicates concurrent first loads so only one notebook is created", async () => {
+    const notebook = makeNotebook("nb-1", "item-1");
+    const createNotebook = vi.fn(async () => notebook);
+    const remoteStore: NotebookStoreApi = {
+      listNotebooks: async () => [],
+      getNotebook: async () => notebook,
+      createNotebook,
+      createItem: async () => notebook.items[0],
+      updateItem: async () => notebook.items[0],
+    };
+
+    const store = createNotebookStore(remoteStore);
+    await Promise.all([store.getState().loadNotebooks(), store.getState().loadNotebooks()]);
+
+    expect(createNotebook).toHaveBeenCalledTimes(1);
+    expect(store.getState().notebooks).toHaveLength(1);
+  });
+
   it("switches the active item within the current notebook", async () => {
     const notebook = {
       ...makeNotebook("nb-1", "item-1"),

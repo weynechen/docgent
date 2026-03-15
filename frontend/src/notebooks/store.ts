@@ -161,6 +161,7 @@ function createNotebookState(remoteStore: NotebookStoreApi, aiClient: NotebookAi
     });
     let activeChatStream: (() => void) | undefined;
     let pendingQueueWrite: Promise<void> | undefined;
+    let loadNotebooksPromise: Promise<void> | undefined;
 
     const closeActiveChatStream = () => {
       activeChatStream?.();
@@ -193,23 +194,36 @@ function createNotebookState(remoteStore: NotebookStoreApi, aiClient: NotebookAi
       isGenerating: false,
 
       async loadNotebooks() {
-        set({ isLoading: true });
-        let notebooks = await remoteStore.listNotebooks();
-        if (notebooks.length === 0) {
-          const notebook = await remoteStore.createNotebook();
-          notebooks = [notebook];
+        if (loadNotebooksPromise) {
+          await loadNotebooksPromise;
+          return;
         }
-        notebooks = await mergePendingEdits(notebooks);
-        const activeNotebook = notebooks[0];
-        set({
-          isLoading: false,
-          notebooks,
-          activeNotebook,
-          activeItem: selectDefaultItem(activeNotebook),
-          ...resetChatState(),
-        });
-        if (activeNotebook && window.navigator.onLine) {
-          void syncEngine.flushPendingEdits(activeNotebook.id);
+
+        loadNotebooksPromise = (async () => {
+          set({ isLoading: true });
+          let notebooks = await remoteStore.listNotebooks();
+          if (notebooks.length === 0) {
+            const notebook = await remoteStore.createNotebook();
+            notebooks = [notebook];
+          }
+          notebooks = await mergePendingEdits(notebooks);
+          const activeNotebook = notebooks[0];
+          set({
+            isLoading: false,
+            notebooks,
+            activeNotebook,
+            activeItem: selectDefaultItem(activeNotebook),
+            ...resetChatState(),
+          });
+          if (activeNotebook && window.navigator.onLine) {
+            void syncEngine.flushPendingEdits(activeNotebook.id);
+          }
+        })();
+
+        try {
+          await loadNotebooksPromise;
+        } finally {
+          loadNotebooksPromise = undefined;
         }
       },
 

@@ -18,6 +18,14 @@ export function createNotebookSyncEngine({
 }: NotebookSyncEngineOptions) {
   const timers = new Map<string, number>();
 
+  function isRevisionConflict(error: unknown) {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+    const errorWithCode = error as Error & { code?: string };
+    return errorWithCode.code === "REVISION_CONFLICT" || error.message.includes("REVISION_CONFLICT");
+  }
+
   async function flushPendingEdits(notebookId: string) {
     if (!window.navigator.onLine) {
       onSyncStateChange("offline");
@@ -36,7 +44,7 @@ export function createNotebookSyncEngine({
         onItemSaved(item);
         onSyncStateChange("saved");
       } catch (error) {
-        if (error instanceof Error && error.message.includes("REVISION_CONFLICT")) {
+        if (isRevisionConflict(error)) {
           onConflict?.(edit);
           onSyncStateChange("conflict");
           return;

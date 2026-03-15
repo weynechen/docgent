@@ -1,19 +1,25 @@
 import type { NotebookItemRecord, NotebookStoreApi, NotebookRecord } from "./types";
 
+class NotebookApiError extends Error {
+  code?: string;
+}
+
 async function parseError(response: Response, fallback: string) {
   try {
-    const payload = (await response.json()) as { error?: { message?: string } };
-    return payload.error?.message || fallback;
+    const payload = (await response.json()) as { error?: { code?: string; message?: string } };
+    const error = new NotebookApiError(payload.error?.message || fallback);
+    error.code = payload.error?.code;
+    return error;
   } catch {
     const text = await response.text();
-    return text || fallback;
+    return new NotebookApiError(text || fallback);
   }
 }
 
 async function requestJson<T>(input: RequestInfo, init: RequestInit, fallback: string): Promise<T> {
   const response = await fetch(input, init);
   if (!response.ok) {
-    throw new Error(await parseError(response, fallback));
+    throw await parseError(response, fallback);
   }
   return (await response.json()) as T;
 }
