@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent
 import { useEditor } from "@tiptap/react";
 import { Bot, FileText, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, SendHorizontal } from "lucide-react";
 
+import { NotebookConflictBanner } from "../notebooks/NotebookConflictBanner";
 import { SimpleEditor, createSimpleEditorExtensions } from "@/components/tiptap-templates/simple/simple-editor";
 import { NotebookSidebar } from "../notebooks/NotebookSidebar";
 import { NotebookStatusBar } from "../notebooks/NotebookStatusBar";
@@ -21,6 +22,7 @@ function App() {
     notebooks,
     activeNotebook,
     activeItem,
+    activeConflict,
     syncState,
     chatMessages,
     toolEvents,
@@ -34,6 +36,8 @@ function App() {
     updateActiveItemContent,
     setSelection,
     flushActiveNotebook,
+    reloadConflictedItem,
+    keepLocalAsNewCopy,
     sendChatMessage,
   } = useNotebookStore();
   const lastSerializedRef = useRef("");
@@ -51,6 +55,7 @@ function App() {
       characters: content.length,
     };
   }, [activeItem?.content]);
+  const isActiveConflict = activeConflict?.itemId === activeItem?.id;
 
   const editor = useEditor({
     extensions: createSimpleEditorExtensions(),
@@ -105,6 +110,14 @@ function App() {
     editor.commands.setContent(markdownToDoc(activeItem.content), { emitUpdate: false });
     lastSerializedRef.current = activeItem.content;
   }, [editor, activeItem]);
+
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+
+    editor.setEditable(!isActiveConflict);
+  }, [editor, isActiveConflict]);
 
   useEffect(() => {
     const handlePointerUp = () => {
@@ -177,6 +190,21 @@ function App() {
     await sendChatMessage(nextMessage);
   };
 
+  const handleReloadConflict = async () => {
+    if (!activeConflict) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Reloading will discard the current unsynced local changes for this item and restore the latest server version. Continue?",
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    await reloadConflictedItem();
+  };
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#f6f6f8] font-sans text-slate-900">
       {!isLeftCollapsed ? (
@@ -242,11 +270,21 @@ function App() {
           </div>
         </div>
 
+        {isActiveConflict && activeItem ? (
+          <NotebookConflictBanner
+            onKeepLocal={() => void keepLocalAsNewCopy()}
+            onReload={() => void handleReloadConflict()}
+            title={activeItem.title}
+          />
+        ) : null}
+
         <div className="min-h-0 flex-1 bg-white">
           {isLoading ? (
             <div className="flex h-full items-center justify-center text-sm text-slate-400">Loading notebook...</div>
           ) : activeItem ? (
-            <SimpleEditor editor={editor} />
+            <div className={isActiveConflict ? "h-full bg-slate-50/70" : "h-full"}>
+              <SimpleEditor editor={editor} />
+            </div>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-slate-400">No notebook item selected.</div>
           )}
@@ -330,20 +368,26 @@ function App() {
               <form className="border-t border-slate-200 bg-white/70 p-4" onSubmit={(event) => void submitChat(event)}>
                 <textarea
                   className="min-h-[96px] w-full resize-none rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-primary"
-                  disabled={!activeItem || isGenerating}
+                  disabled={!activeItem || isGenerating || isActiveConflict}
                   onChange={(event) => setChatInput(event.target.value)}
-                  placeholder="Ask AI to refine the active item or use notebook context..."
+                  placeholder={
+                    isActiveConflict
+                      ? "Resolve the conflict before asking AI to edit this item..."
+                      : "Ask AI to refine the active item or use notebook context..."
+                  }
                   value={chatInput}
                 />
                 <div className="mt-3 flex items-center justify-between gap-3">
                   <p className="text-[11px] text-slate-400">
-                    {syncState === "saved"
+                    {isActiveConflict
+                      ? "AI collaboration is paused until this conflict is resolved."
+                      : syncState === "saved"
                       ? "AI reads the latest synced notebook item."
                       : "AI chat waits for the current item to sync first."}
                   </p>
                   <button
                     className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={!activeItem || isGenerating || !chatInput.trim()}
+                    disabled={!activeItem || isGenerating || isActiveConflict || !chatInput.trim()}
                     type="submit"
                   >
                     <SendHorizontal size={14} />

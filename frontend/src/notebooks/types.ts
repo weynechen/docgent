@@ -27,6 +27,7 @@ export interface NotebookUiState {
 
 export interface NotebookStoreApi {
   listNotebooks(): Promise<NotebookRecord[]>;
+  getNotebook(notebookId: string): Promise<NotebookRecord>;
   createNotebook(): Promise<NotebookRecord>;
   createItem(input: { notebookId: string; type: NotebookItemType; title: string; content?: string }): Promise<NotebookItemRecord>;
   updateItem(input: { itemId: string; title?: string; content?: string; baseRevision: number }): Promise<NotebookItemRecord>;

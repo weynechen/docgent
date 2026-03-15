@@ -1,9 +1,10 @@
-import { deletePendingEdit, readPendingEdits, writePendingEdit } from "./indexedDb";
+import { deletePendingEdit, readPendingEdits, type PendingEditRecord, writePendingEdit } from "./indexedDb";
 import type { NotebookItemRecord, NotebookStoreApi, NotebookSyncState } from "./types";
 
 interface NotebookSyncEngineOptions {
   remoteStore: NotebookStoreApi;
   onItemSaved: (item: NotebookItemRecord) => void;
+  onConflict?: (edit: PendingEditRecord) => void;
   onSyncStateChange: (syncState: NotebookSyncState) => void;
   debounceMs?: number;
 }
@@ -11,6 +12,7 @@ interface NotebookSyncEngineOptions {
 export function createNotebookSyncEngine({
   remoteStore,
   onItemSaved,
+  onConflict,
   onSyncStateChange,
   debounceMs = 800,
 }: NotebookSyncEngineOptions) {
@@ -35,6 +37,7 @@ export function createNotebookSyncEngine({
         onSyncStateChange("saved");
       } catch (error) {
         if (error instanceof Error && error.message.includes("REVISION_CONFLICT")) {
+          onConflict?.(edit);
           onSyncStateChange("conflict");
           return;
         }

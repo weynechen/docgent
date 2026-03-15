@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { readPendingEdits } from "./indexedDb";
 import { createNotebookStore } from "./store";
 import type { NotebookRecord, NotebookStoreApi } from "./types";
 
@@ -30,6 +31,7 @@ describe("notebook store", () => {
     const notebook = makeNotebook("nb-1", "item-1");
     const remoteStore: NotebookStoreApi = {
       listNotebooks: async () => [],
+      getNotebook: async () => notebook,
       createNotebook: async () => notebook,
       createItem: async () => notebook.items[0],
       updateItem: async () => notebook.items[0],
@@ -63,6 +65,7 @@ describe("notebook store", () => {
     };
     const remoteStore: NotebookStoreApi = {
       listNotebooks: async () => [notebook],
+      getNotebook: async () => notebook,
       createNotebook: async () => notebook,
       createItem: async () => notebook.items[0],
       updateItem: async () => notebook.items[0],
@@ -80,6 +83,7 @@ describe("notebook store", () => {
     const notebook = makeNotebook("nb-1", "item-1");
     const remoteStore: NotebookStoreApi = {
       listNotebooks: async () => [notebook],
+      getNotebook: async () => notebook,
       createNotebook: async () => notebook,
       createItem: async () => notebook.items[0],
       updateItem: async () => notebook.items[0],
@@ -97,6 +101,7 @@ describe("notebook store", () => {
     const notebook = makeNotebook("nb-1", "item-1");
     const remoteStore: NotebookStoreApi = {
       listNotebooks: async () => [notebook],
+      getNotebook: async () => notebook,
       createNotebook: async () => notebook,
       createItem: async () => notebook.items[0],
       updateItem: async () => ({
@@ -153,5 +158,103 @@ describe("notebook store", () => {
     expect(store.getState().activeItem?.serverRevision).toBe(3);
     const latestMessage = store.getState().chatMessages[store.getState().chatMessages.length - 1];
     expect(latestMessage?.content).toContain("I updated the draft.");
+  });
+
+  it("reloads the conflicted item from the server after confirmation flow", async () => {
+    const notebook = makeNotebook("nb-1", "item-1");
+    const remoteNotebook = {
+      ...notebook,
+      items: [
+        {
+          ...notebook.items[0],
+          content: "# Server version",
+          serverRevision: 3,
+        },
+      ],
+    };
+    const remoteStore: NotebookStoreApi = {
+      listNotebooks: async () => [notebook],
+      getNotebook: async () => remoteNotebook,
+      createNotebook: async () => notebook,
+      createItem: async () => notebook.items[0],
+      updateItem: async () => {
+        throw new Error("REVISION_CONFLICT");
+      },
+    };
+
+    const store = createNotebookStore(remoteStore);
+    await store.getState().loadNotebooks();
+    store.getState().updateActiveItemContent("# Local conflict");
+    await store.getState().flushActiveNotebook();
+
+    expect(store.getState().activeConflict?.itemId).toBe("item-1");
+
+    await store.getState().reloadConflictedItem();
+
+    expect(store.getState().activeConflict).toBeUndefined();
+    expect(store.getState().activeItem?.content).toBe("# Server version");
+    expect(store.getState().activeItem?.serverRevision).toBe(3);
+    expect(await readPendingEdits("nb-1")).toHaveLength(0);
+  });
+
+  it("keeps local conflicted content as a new recovered draft", async () => {
+    const notebook = makeNotebook("nb-1", "item-1");
+    let currentNotebook: NotebookRecord = {
+      ...notebook,
+      items: [
+        {
+          ...notebook.items[0],
+          content: "# Server version",
+          serverRevision: 3,
+        },
+      ],
+    };
+    const recoveredItem = {
+      id: "item-2",
+      notebookId: "nb-1",
+      type: "draft" as const,
+      title: "Untitled (Recovered)",
+      content: "# Local conflict",
+      contentFormat: "markdown" as const,
+      orderIndex: 1,
+      serverRevision: 1,
+      isDirty: false,
+    };
+    const createItem = vi.fn(async (_input: unknown) => recoveredItem);
+    const remoteStore: NotebookStoreApi = {
+      listNotebooks: async () => [notebook],
+      getNotebook: async () => currentNotebook,
+      createNotebook: async () => notebook,
+      createItem: vi.fn(async (input) => {
+        const item = await createItem(input);
+        currentNotebook = {
+          ...currentNotebook,
+          items: [...currentNotebook.items, item],
+        };
+        return item;
+      }),
+      updateItem: async () => {
+        throw new Error("REVISION_CONFLICT");
+      },
+    };
+
+    const store = createNotebookStore(remoteStore);
+    await store.getState().loadNotebooks();
+    store.getState().updateActiveItemContent("# Local conflict");
+    await store.getState().flushActiveNotebook();
+
+    await store.getState().keepLocalAsNewCopy();
+
+    expect(createItem).toHaveBeenCalledWith({
+      notebookId: "nb-1",
+      type: "draft",
+      title: "Untitled (Recovered)",
+      content: "# Local conflict",
+    });
+    expect(store.getState().activeConflict).toBeUndefined();
+    expect(store.getState().activeItem?.id).toBe("item-2");
+    expect(store.getState().activeItem?.content).toBe("# Local conflict");
+    expect(store.getState().activeNotebook?.items).toHaveLength(2);
+    expect(await readPendingEdits("nb-1")).toHaveLength(0);
   });
 });

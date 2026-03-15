@@ -42,6 +42,15 @@ export const remoteNotebookStore: NotebookStoreApi = {
     return notebooks.map(toNotebook);
   },
 
+  async getNotebook(notebookId) {
+    const notebook = await requestJson<Omit<NotebookRecord, "items"> & { items: Array<Omit<NotebookItemRecord, "isDirty">> }>(
+      `/api/v1/notebooks/${notebookId}`,
+      { method: "GET" },
+      "Failed to load notebook.",
+    );
+    return toNotebook(notebook);
+  },
+
   async createNotebook() {
     const notebook = await requestJson<Omit<NotebookRecord, "items"> & { items: Array<Omit<NotebookItemRecord, "isDirty">> }>(
       "/api/v1/notebooks",

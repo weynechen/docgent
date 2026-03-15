@@ -50,6 +50,7 @@ describe("notebook persistence", () => {
     const savedItems: NotebookItemRecord[] = [];
     const item = makeItem();
     const remoteStore: NotebookStoreApi = {
+      getNotebook: async () => ({ id: "nb-1", title: "Notebook", createdAt: "", updatedAt: "", items: [item] }),
       listNotebooks: async () => [],
       createNotebook: async () => ({ id: "nb-1", title: "Notebook", createdAt: "", updatedAt: "", items: [] }),
       createItem: async () => item,
@@ -84,8 +85,10 @@ describe("notebook persistence", () => {
 
   it("moves to conflict when the server rejects a stale revision", async () => {
     const savedStates: NotebookSyncState[] = [];
+    const conflicts: string[] = [];
     const item = makeItem();
     const remoteStore: NotebookStoreApi = {
+      getNotebook: async () => ({ id: "nb-1", title: "Notebook", createdAt: "", updatedAt: "", items: [item] }),
       listNotebooks: async () => [],
       createNotebook: async () => ({ id: "nb-1", title: "Notebook", createdAt: "", updatedAt: "", items: [] }),
       createItem: async () => item,
@@ -96,6 +99,7 @@ describe("notebook persistence", () => {
     const engine = createNotebookSyncEngine({
       remoteStore,
       onItemSaved: () => undefined,
+      onConflict: (edit) => conflicts.push(edit.itemId),
       onSyncStateChange: (syncState) => savedStates.push(syncState),
     });
 
@@ -109,5 +113,6 @@ describe("notebook persistence", () => {
     await engine.flushPendingEdits("nb-1");
 
     expect(savedStates[savedStates.length - 1]).toBe("conflict");
+    expect(conflicts).toEqual(["item-1"]);
   });
 });

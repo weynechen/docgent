@@ -8,7 +8,7 @@ import type {
   AgentToolEvent,
   SelectionContext,
 } from "../shared/types";
-import { readPendingEdits } from "./indexedDb";
+import { deletePendingEdit, readPendingEdits } from "./indexedDb";
 import type { NotebookItemRecord, NotebookRecord, NotebookStoreApi, NotebookSyncState } from "./types";
 import { remoteNotebookStore } from "./remoteNotebookStore";
 import { createNotebookSyncEngine } from "./syncEngine";
@@ -19,11 +19,20 @@ interface NotebookAiClient {
   startAgentChatRun: typeof startAgentChatRun;
 }
 
+export interface NotebookConflictState {
+  notebookId: string;
+  itemId: string;
+  title: string;
+  content: string;
+  baseRevision: number;
+}
+
 export interface NotebookStoreState {
   isLoading: boolean;
   notebooks: NotebookRecord[];
   activeNotebook?: NotebookRecord;
   activeItem?: NotebookItemRecord;
+  activeConflict?: NotebookConflictState;
   syncState: NotebookSyncState;
   selection?: SelectionContext;
   chatMessages: AgentChatMessage[];
@@ -40,6 +49,8 @@ export interface NotebookStoreState {
   setSelection: (selection?: SelectionContext) => void;
   applyRemoteItem: (item: NotebookItemRecord) => void;
   flushActiveNotebook: () => Promise<void>;
+  reloadConflictedItem: () => Promise<void>;
+  keepLocalAsNewCopy: () => Promise<void>;
   sendChatMessage: (message: string) => Promise<void>;
 }
 
@@ -81,6 +92,10 @@ function resetChatState() {
     agentRunState: "idle" as const,
     isGenerating: false,
   };
+}
+
+function buildRecoveredTitle(title: string) {
+  return `${title} (Recovered)`;
 }
 
 async function mergePendingEdits(notebooks: NotebookRecord[]): Promise<NotebookRecord[]> {
@@ -127,6 +142,19 @@ function createNotebookState(remoteStore: NotebookStoreApi, aiClient: NotebookAi
       onItemSaved: (item) => {
         get().applyRemoteItem(item);
       },
+      onConflict: (edit) => {
+        const notebook = get().notebooks.find((entry) => entry.id === edit.notebookId);
+        const item = notebook?.items.find((entry) => entry.id === edit.itemId);
+        set({
+          activeConflict: {
+            notebookId: edit.notebookId,
+            itemId: edit.itemId,
+            title: item?.title ?? "Untitled",
+            content: edit.content,
+            baseRevision: edit.baseRevision,
+          },
+        });
+      },
       onSyncStateChange: (syncState) => {
         set({ syncState });
       },
@@ -137,6 +165,22 @@ function createNotebookState(remoteStore: NotebookStoreApi, aiClient: NotebookAi
     const closeActiveChatStream = () => {
       activeChatStream?.();
       activeChatStream = undefined;
+    };
+
+    const mergeNotebook = (incomingNotebook: NotebookRecord, activeItemId?: string) => {
+      const current = get();
+      return {
+        notebooks: current.notebooks.map((entry) => (entry.id === incomingNotebook.id ? incomingNotebook : entry)),
+        activeNotebook: current.activeNotebook?.id === incomingNotebook.id ? incomingNotebook : current.activeNotebook,
+        activeItem:
+          current.activeNotebook?.id === incomingNotebook.id
+            ? incomingNotebook.items.find((entry) => entry.id === activeItemId) ?? selectDefaultItem(incomingNotebook)
+            : current.activeItem,
+      };
+    };
+
+    const loadNotebook = async (notebookId: string) => {
+      return await remoteStore.getNotebook(notebookId);
     };
 
     return {
@@ -238,8 +282,11 @@ function createNotebookState(remoteStore: NotebookStoreApi, aiClient: NotebookAi
       },
 
       updateActiveItemContent(content) {
-        const { activeItem, activeNotebook, notebooks } = get();
+        const { activeItem, activeNotebook, notebooks, activeConflict } = get();
         if (!activeItem || !activeNotebook) {
+          return;
+        }
+        if (activeConflict?.itemId === activeItem.id) {
           return;
         }
 
@@ -302,10 +349,59 @@ function createNotebookState(remoteStore: NotebookStoreApi, aiClient: NotebookAi
         await syncEngine.flushPendingEdits(notebook.id);
       },
 
+      async reloadConflictedItem() {
+        const conflict = get().activeConflict;
+        if (!conflict) {
+          return;
+        }
+
+        const notebook = await loadNotebook(conflict.notebookId);
+        await deletePendingEdit(conflict.notebookId, conflict.itemId);
+        const merged = mergeNotebook(notebook, conflict.itemId);
+        set({
+          ...merged,
+          activeConflict: undefined,
+          syncState: "saved",
+          ...resetChatState(),
+        });
+      },
+
+      async keepLocalAsNewCopy() {
+        const conflict = get().activeConflict;
+        if (!conflict) {
+          return;
+        }
+
+        const createdItem = await remoteStore.createItem({
+          notebookId: conflict.notebookId,
+          type: "draft",
+          title: buildRecoveredTitle(conflict.title),
+          content: conflict.content,
+        });
+        await deletePendingEdit(conflict.notebookId, conflict.itemId);
+        const notebook = await loadNotebook(conflict.notebookId);
+        const mergedNotebook = notebook.items.some((item) => item.id === createdItem.id)
+          ? notebook
+          : {
+              ...notebook,
+              items: [...notebook.items, createdItem],
+            };
+        const merged = mergeNotebook(mergedNotebook, createdItem.id);
+        set({
+          ...merged,
+          activeConflict: undefined,
+          syncState: "saved",
+          ...resetChatState(),
+        });
+      },
+
       async sendChatMessage(message) {
-        const { activeNotebook, activeItem, conversationId, chatMessages, isGenerating, selection } = get();
+        const { activeNotebook, activeItem, activeConflict, conversationId, chatMessages, isGenerating, selection } = get();
         const trimmed = message.trim();
         if (!activeNotebook || !activeItem || !trimmed || isGenerating) {
+          return;
+        }
+        if (activeConflict?.itemId === activeItem.id) {
           return;
         }
 

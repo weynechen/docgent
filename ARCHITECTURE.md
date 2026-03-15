@@ -14,29 +14,29 @@
 
 当前仓库的 AI 主线已经切换到 `backend` 中的 Python FastAPI + LangChain 实现。
 
-当前正在推进的下一阶段，是把右侧 AI 面板从“单次选区改写入口”升级为“会话式 agentic chat + workspace tools + 流式执行”的统一运行面。
+当前主编辑链路已经切到 notebook-first：`Notebook` 作为顶层集合，`draft` / `note` 作为 item，右侧 AI 面板也已绑定 notebook/item 上下文。
 
 ## 分层
 
 ### 前端工作区
 
 - `frontend/src/app/App.tsx`
-  - 负责工作台布局、侧栏折叠/拖拽、标签栏、状态栏和跨区域交互编排。
-- `frontend/src/app/store.ts`
-  - 负责远程工作区状态、AI 会话状态、候选状态、版本列表、通知与整文保存。
+  - 负责 notebook 工作台布局、侧栏折叠/拖拽、状态栏、冲突横幅和右栏 AI 编排。
+- `frontend/src/notebooks/store.ts`
+  - 负责 notebook/item 状态、自动保存、离线缓冲、冲突恢复、AI 会话状态与写回同步。
 
 ### 前端领域与表达层
 
-- `frontend/src/documents/`
-  - `documentStore.ts`：后端工作区文档读取/保存接口
-  - `versionStore.ts`：版本快照接口与 localStorage 实现
+- `frontend/src/notebooks/`
+  - `remoteNotebookStore.ts`：notebook/item 远端接口
+  - `indexedDb.ts`：本地待同步编辑缓冲
+  - `syncEngine.ts`：debounce、离线重放与冲突状态机
+  - `NotebookConflictBanner.tsx`：冲突恢复横幅
 - `frontend/src/ai/`
-  - `provider.ts`：前端 AI provider，负责启动 rewrite / chat 请求并订阅 SSE 事件
+  - `provider.ts`：前端 AI provider，负责启动 notebook-aware chat 请求并订阅 WebSocket 事件
 - `frontend/src/shared/`
   - `markdown.ts`：Markdown 与编辑器内容的转换
-  - `types.ts`：领域实体、改写流事件与版本定义
-  - `storage.ts`：浏览器持久化辅助
-  - `diff.ts`：差异预览逻辑
+  - `types.ts`：共享消息事件与前端领域类型
 
 ### 云端后端目录
 
@@ -57,22 +57,31 @@
 
 该结构直接复用模板生成的主后端实现，而不是手工模仿模板目录。
 
-### 已落地 AI 路径
+### 已落地 notebook 路径
+
+- `backend/app/api/routes/v1/notebooks.py`
+  - 提供 notebook 与 notebook item 的创建、读取和更新接口
+- `backend/app/services/notebook.py`
+  - 负责 notebook/item 生命周期与 revision 冲突校验
+- `backend/app/agents/tools/notebook_tools.py`
+  - 提供 notebook scoped 的 `ListItems` / `Read` / `Write` / `WebSearch`
+- `backend/app/api/routes/v1/agent.py`
+  - 同时兼容旧 workspace 语义与新 notebook/item 语义，并在写回时发出 `notebook_item_updated`
+
+### 仍保留的旧路径
 
 - `backend/app/api/routes/v1/workspaces.py`
-  - 提供工作区创建、文件读取/保存、AI 改写 run、候选应用与 SSE 接口
+  - 仍承载旧的临时 workspace 与 rewrite 流程，主要作为兼容路径保留
 - `backend/app/services/workspace.py`
-  - 负责临时工作区文件树、revision 与文件读写
+  - 仍负责会话级临时工作区文件树与读写
 - `backend/app/services/rewrite.py`
-  - 负责 run 注册、事件回放、候选变更与应用
-- `backend/app/agents/rewrite.py`
-  - 负责基于完整 Markdown 文档生成 reviewable candidate
+  - 仍负责 reviewable rewrite run
 
-### 目标中的下一阶段 AI 路径
+### 当前 AI 路径状态
 
-- 右栏 AI Chat 将从单用途 rewrite endpoint 扩展到会话式 agent endpoint
-- agent runtime 将复用 `backend/app/agents` 下的 LangChain 能力，并新增 workspace-scoped tools
-- 事件流将从“单 run 状态 + 最终候选”扩展到“消息增量 + 工具调用 + 写入结果 + 最终完成态”
+- 右栏 AI Chat 已是会话式 agent endpoint
+- agent runtime 已接 notebook-scoped tools，旧 workspace tools 仍保留兼容
+- 事件流已包含消息增量、工具调用、工具结果、notebook item 写回与最终完成态
 
 ### 编辑器 UI 层
 
@@ -85,17 +94,17 @@
 
 ## 当前边界
 
-- 临时工作区是后端真相源，但仍是会话级临时目录，不是正式持久化存储
+- notebook 数据库域已是正式真相源；旧临时 workspace 仍存在，但不再是主编辑路径
 - 版本系统是应用内快照，不是 Git
-- 当前 AI 改写已切换到模板化 Python backend；仍未接入持久化任务队列
-- 当前右栏 chat 仍未完成真正的多轮、流式与工具调用执行模型
+- 当前 AI 改写与 notebook chat 都已切到模板化 Python backend；仍未接入持久化任务队列
+- 冲突恢复已具备基础 UX，但还没有更复杂的 diff / merge 辅助
 - 右栏 AI 面板与编辑器模板是集成关系，不是统一插件系统
 - `desktop` 仍是目标目录，占位多于实现
 
 ## 后续演进
 
-1. 将右侧 AI 能力从 selection rewrite 扩展到会话式 agent run。
-2. 为 agent 接入 `Read`、`Write`、`Glob`、`Grep`、`WebSearch` 等 workspace-scoped tools。
+1. 为 notebook item 扩展外链资料与文件导入类型。
+2. 为冲突恢复补充浏览器级回归、差异预览和更细粒度状态反馈。
 3. 将 rewrite run / agent run 从内存态扩展到可持久化或可恢复的任务模型。
 4. 在模板后端中继续接入文档、版本与用户域能力，而不是额外再迁一次模板。
 5. MVP 阶段继续使用日志观测，后续优先接模板现有的 LangChain 观测扩展点。

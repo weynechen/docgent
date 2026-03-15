@@ -16,7 +16,12 @@
   - websocket 支持 `notebook_id` / `item_id`
   - agent tools 支持 `ListItems`、`Read`、`Write`
   - 前端右栏已恢复真实聊天输入、流式消息与 notebook item 写回
-- 当前未完成项主要是浏览器手工回归、冲突处理 UX 打磨，以及外链/导入扩展实现
+- 已完成第一版冲突恢复 UX：
+  - 冲突时顶部横幅提示
+  - 默认主动作 `Reload server version`
+  - 次动作 `Keep local as new copy`
+  - 冲突 item 在处理前锁定编辑和 AI 输入
+- 当前未完成项主要是浏览器手工回归，以及外链/导入扩展实现
 
 ---
 
