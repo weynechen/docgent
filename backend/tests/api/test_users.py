@@ -73,9 +73,18 @@ async def auth_client(
     mock_db_session,
 ) -> AsyncClient:
     """Client with authenticated regular user."""
-    app.dependency_overrides[get_current_user] = lambda: mock_user
-    app.dependency_overrides[get_user_service] = lambda: mock_user_service
-    app.dependency_overrides[get_db_session] = lambda: mock_db_session
+    async def override_current_user():
+        return mock_user
+
+    async def override_user_service():
+        return mock_user_service
+
+    async def override_db_session():
+        return mock_db_session
+
+    app.dependency_overrides[get_current_user] = override_current_user
+    app.dependency_overrides[get_user_service] = override_user_service
+    app.dependency_overrides[get_db_session] = override_db_session
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -93,10 +102,22 @@ async def superuser_client(
     mock_db_session,
 ) -> AsyncClient:
     """Client with authenticated superuser."""
-    app.dependency_overrides[get_current_user] = lambda: mock_superuser
-    app.dependency_overrides[get_current_active_superuser] = lambda: mock_superuser
-    app.dependency_overrides[get_user_service] = lambda: mock_user_service
-    app.dependency_overrides[get_db_session] = lambda: mock_db_session
+    async def override_current_user():
+        return mock_superuser
+
+    async def override_current_superuser():
+        return mock_superuser
+
+    async def override_user_service():
+        return mock_user_service
+
+    async def override_db_session():
+        return mock_db_session
+
+    app.dependency_overrides[get_current_user] = override_current_user
+    app.dependency_overrides[get_current_active_superuser] = override_current_superuser
+    app.dependency_overrides[get_user_service] = override_user_service
+    app.dependency_overrides[get_db_session] = override_db_session
 
     async with AsyncClient(
         transport=ASGITransport(app=app),

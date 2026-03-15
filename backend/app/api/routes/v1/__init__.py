@@ -8,6 +8,7 @@ from app.api.routes.v1 import auth, users
 from app.api.routes.v1 import oauth
 from app.api.routes.v1 import sessions
 from app.api.routes.v1 import items
+from app.api.routes.v1 import notebooks
 from app.api.routes.v1 import conversations
 from app.api.routes.v1 import agent
 from app.api.routes.v1 import workspaces
@@ -31,6 +32,9 @@ v1_router.include_router(sessions.router, prefix="/sessions", tags=["sessions"])
 
 # Example CRUD routes (items)
 v1_router.include_router(items.router, prefix="/items", tags=["items"])
+
+# Notebook routes
+v1_router.include_router(notebooks.router, tags=["notebooks"])
 
 # Conversation routes (AI chat persistence)
 v1_router.include_router(conversations.router, prefix="/conversations", tags=["conversations"])

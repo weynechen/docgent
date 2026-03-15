@@ -7,6 +7,13 @@ from app.schemas.user import UserCreate, UserRead, UserUpdate
 from app.schemas.session import SessionRead, SessionListResponse, LogoutAllResponse
 
 from app.schemas.item import ItemCreate, ItemRead, ItemUpdate
+from app.schemas.notebook import (
+    NotebookCreate,
+    NotebookItemCreate,
+    NotebookItemRead,
+    NotebookItemUpdate,
+    NotebookRead,
+)
 
 from app.schemas.conversation import (
     ConversationCreate,
@@ -47,6 +54,11 @@ __all__ = [
     "ItemCreate",
     "ItemRead",
     "ItemUpdate",
+    "NotebookCreate",
+    "NotebookItemCreate",
+    "NotebookItemRead",
+    "NotebookItemUpdate",
+    "NotebookRead",
     "ConversationCreate",
     "ConversationRead",
     "ConversationUpdate",

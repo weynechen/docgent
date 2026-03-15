@@ -10,6 +10,7 @@ from app.services.user import UserService
 from app.services.session import SessionService
 
 from app.services.item import ItemService
+from app.services.notebook import NotebookService
 
 from app.services.conversation import ConversationService
 from app.services.rewrite import RewriteRunService, rewrite_run_service
@@ -19,6 +20,7 @@ __all__ = [
     "UserService",
     "SessionService",
     "ItemService",
+    "NotebookService",
     "ConversationService",
     "RewriteRunService",
     "rewrite_run_service",

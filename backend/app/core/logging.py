@@ -14,9 +14,8 @@ from time import perf_counter
 from typing import Any
 from uuid import uuid4
 
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.datastructures import MutableHeaders
 from starlette.requests import Request
-from starlette.responses import Response
 
 from app.core.config import Settings
 
@@ -298,40 +297,55 @@ def setup_logging(settings: Settings, *, force: bool = False) -> None:
     root_logger._docgent_logging_configured = True  # type: ignore[attr-defined]
 
 
-class RequestContextMiddleware(BaseHTTPMiddleware):
+class RequestContextMiddleware:
     """Bind request IDs, trace IDs, and access logs for every HTTP request."""
 
     def __init__(self, app) -> None:
         """Initialize the middleware."""
-        super().__init__(app)
+        self.app = app
         self.logger = logging.getLogger("app.request")
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def __call__(self, scope, receive, send) -> None:
         """Attach request context and write an access log entry."""
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        request = Request(scope)
         request_id = request.headers.get("X-Request-ID") or request.headers.get("x-request-id")
         request_id = request_id or uuid4().hex
         trace_context = parse_traceparent(request.headers.get("traceparent"))
 
-        request.state.request_id = request_id
-        request.state.trace_id = trace_context["trace_id"]
-        request.state.span_id = trace_context["span_id"]
-        request.state.parent_span_id = trace_context["parent_span_id"]
-        request.state.trace_flags = trace_context["trace_flags"]
+        state = scope.setdefault("state", {})
+        state["request_id"] = request_id
+        state["trace_id"] = trace_context["trace_id"]
+        state["span_id"] = trace_context["span_id"]
+        state["parent_span_id"] = trace_context["parent_span_id"]
+        state["trace_flags"] = trace_context["trace_flags"]
 
         started_at = perf_counter()
+        status_code: int | None = None
+
+        async def send_with_context(message) -> None:
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message["status"]
+                headers = MutableHeaders(scope=message)
+                headers["X-Request-ID"] = request_id
+            await send(message)
+
         with bind_log_context(request_id=request_id, **trace_context):
-            response = await call_next(request)
-            duration_ms = round((perf_counter() - started_at) * 1000, 2)
-            response.headers["X-Request-ID"] = request_id
-            log_event(
-                self.logger,
-                logging.INFO,
-                "http.server.request.completed",
-                "HTTP request completed",
-                method=request.method,
-                path=request.url.path,
-                status_code=response.status_code,
-                client_ip=request.client.host if request.client else None,
-                duration_ms=duration_ms,
-            )
-            return response
+            await self.app(scope, receive, send_with_context)
+
+        duration_ms = round((perf_counter() - started_at) * 1000, 2)
+        log_event(
+            self.logger,
+            logging.INFO,
+            "http.server.request.completed",
+            "HTTP request completed",
+            method=request.method,
+            path=request.url.path,
+            status_code=status_code,
+            client_ip=request.client.host if request.client else None,
+            duration_ms=duration_ms,
+        )

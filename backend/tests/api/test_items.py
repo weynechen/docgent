@@ -72,8 +72,14 @@ async def client_with_mock_service(
     from app.api.deps import get_item_service
     from app.db.session import get_db_session
 
-    app.dependency_overrides[get_item_service] = lambda db=None: mock_item_service
-    app.dependency_overrides[get_db_session] = lambda: mock_db_session
+    async def override_item_service(db=None):
+        return mock_item_service
+
+    async def override_db_session():
+        return mock_db_session
+
+    app.dependency_overrides[get_item_service] = override_item_service
+    app.dependency_overrides[get_db_session] = override_db_session
 
     async with AsyncClient(
         transport=ASGITransport(app=app),

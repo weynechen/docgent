@@ -46,7 +46,10 @@ async def client(
     This allows proper async testing without thread pool overhead.
     """
     # Override dependencies for testing
-    app.dependency_overrides[get_db_session] = lambda: mock_db_session
+    async def override_db_session():
+        return mock_db_session
+
+    app.dependency_overrides[get_db_session] = override_db_session
 
     async with AsyncClient(
         transport=ASGITransport(app=app),

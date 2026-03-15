@@ -59,8 +59,14 @@ async def error_client(
     """Client with mocked services that raise errors."""
     from app.api.deps import get_user_service
 
-    app.dependency_overrides[get_user_service] = lambda: mock_user_service_with_errors
-    app.dependency_overrides[get_db_session] = lambda: mock_db_session
+    async def override_user_service():
+        return mock_user_service_with_errors
+
+    async def override_db_session():
+        return mock_db_session
+
+    app.dependency_overrides[get_user_service] = override_user_service
+    app.dependency_overrides[get_db_session] = override_db_session
 
     async with AsyncClient(
         transport=ASGITransport(app=app),

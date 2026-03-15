@@ -8,6 +8,7 @@
     "dev:backend": "uv run --project backend docgent_backend server run --reload --host 127.0.0.1 --port 8000",
     "build": "tsc -b frontend/tsconfig.json && vite build --config frontend/vite.config.ts",
     "preview": "vite preview --config frontend/vite.config.ts",
+    "test:frontend": "vitest --config frontend/vitest.config.ts run",
     "test:backend": "uv run --project backend pytest tests -v"
   },
   "dependencies": {
@@ -45,9 +46,12 @@
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.1.0",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^28.1.0",
     "sass-embedded": "^1.98.0",
     "tailwindcss": "^4.1.13",
     "typescript": "^5.9.3",
-    "vite": "^7.1.12"
+    "vite": "^7.1.12",
+    "vitest": "^4.1.0"
   }
 }

@@ -22,17 +22,18 @@ DBSession = Annotated[AsyncSession, Depends(get_db_session)]
 from app.services.user import UserService
 from app.services.session import SessionService
 from app.services.item import ItemService
+from app.services.notebook import NotebookService
 from app.services.conversation import ConversationService
 from app.services.rewrite import RewriteRunService, rewrite_run_service
 from app.services.workspace import WorkspaceService, workspace_service
 
 
-def get_user_service(db: DBSession) -> UserService:
+async def get_user_service(db: DBSession) -> UserService:
     """Create UserService instance with database session."""
     return UserService(db)
 
 
-def get_session_service(db: DBSession) -> SessionService:
+async def get_session_service(db: DBSession) -> SessionService:
     """Create SessionService instance with database session."""
     return SessionService(db)
 
@@ -41,7 +42,7 @@ UserSvc = Annotated[UserService, Depends(get_user_service)]
 SessionSvc = Annotated[SessionService, Depends(get_session_service)]
 
 
-def get_item_service(db: DBSession) -> ItemService:
+async def get_item_service(db: DBSession) -> ItemService:
     """Create ItemService instance with database session."""
     return ItemService(db)
 
@@ -49,7 +50,16 @@ def get_item_service(db: DBSession) -> ItemService:
 ItemSvc = Annotated[ItemService, Depends(get_item_service)]
 
 
-def get_conversation_service(db: DBSession) -> ConversationService:
+async def get_notebook_service(db: DBSession) -> NotebookService:
+    """Create NotebookService instance with database session."""
+
+    return NotebookService(db)
+
+
+NotebookSvc = Annotated[NotebookService, Depends(get_notebook_service)]
+
+
+async def get_conversation_service(db: DBSession) -> ConversationService:
     """Create ConversationService instance with database session."""
     return ConversationService(db)
 
@@ -57,7 +67,7 @@ def get_conversation_service(db: DBSession) -> ConversationService:
 ConversationSvc = Annotated[ConversationService, Depends(get_conversation_service)]
 
 
-def get_rewrite_service() -> RewriteRunService:
+async def get_rewrite_service() -> RewriteRunService:
     """Return the singleton rewrite run service."""
     return rewrite_run_service
 
@@ -65,7 +75,7 @@ def get_rewrite_service() -> RewriteRunService:
 RewriteSvc = Annotated[RewriteRunService, Depends(get_rewrite_service)]
 
 
-def get_workspace_service() -> WorkspaceService:
+async def get_workspace_service() -> WorkspaceService:
     """Return the singleton workspace service."""
     return workspace_service
 
