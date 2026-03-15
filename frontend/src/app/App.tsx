@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { useEditor } from "@tiptap/react";
-import { FileText, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { Bot, FileText, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, SendHorizontal } from "lucide-react";
 
 import { SimpleEditor, createSimpleEditorExtensions } from "@/components/tiptap-templates/simple/simple-editor";
-import { docToMarkdown, markdownToDoc } from "../shared/markdown";
 import { NotebookSidebar } from "../notebooks/NotebookSidebar";
 import { NotebookStatusBar } from "../notebooks/NotebookStatusBar";
 import { useNotebookStore } from "../notebooks/store";
+import { docToMarkdown, markdownToDoc } from "../shared/markdown";
 
 const DEFAULT_LEFT_WIDTH = 270;
 const DEFAULT_RIGHT_WIDTH = 320;
@@ -22,19 +22,26 @@ function App() {
     activeNotebook,
     activeItem,
     syncState,
+    chatMessages,
+    toolEvents,
+    agentRunState,
+    isGenerating,
     loadNotebooks,
     createNotebook,
     createItem,
     setActiveNotebook,
     setActiveItem,
     updateActiveItemContent,
+    setSelection,
     flushActiveNotebook,
+    sendChatMessage,
   } = useNotebookStore();
   const lastSerializedRef = useRef("");
   const [leftWidth, setLeftWidth] = useState(DEFAULT_LEFT_WIDTH);
   const [rightWidth, setRightWidth] = useState(DEFAULT_RIGHT_WIDTH);
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
+  const [chatInput, setChatInput] = useState("");
 
   const stats = useMemo(() => {
     const content = activeItem?.content ?? "";
@@ -64,6 +71,21 @@ function App() {
       if (markdown !== activeItem?.content) {
         updateActiveItemContent(markdown);
       }
+    },
+    onSelectionUpdate: ({ editor: instance }) => {
+      const { from, to } = instance.state.selection;
+      const text = instance.state.doc.textBetween(from, to, "\n");
+      if (!activeItem || from === to || !text.trim()) {
+        setSelection(undefined);
+        return;
+      }
+
+      setSelection({
+        start: from,
+        end: to,
+        text,
+        itemId: activeItem.id,
+      });
     },
   });
 
@@ -144,6 +166,17 @@ function App() {
     window.addEventListener("pointerup", handlePointerUp);
   };
 
+  const submitChat = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const nextMessage = chatInput.trim();
+    if (!nextMessage) {
+      return;
+    }
+
+    setChatInput("");
+    await sendChatMessage(nextMessage);
+  };
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#f6f6f8] font-sans text-slate-900">
       {!isLeftCollapsed ? (
@@ -209,7 +242,7 @@ function App() {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 bg-white">
+        <div className="min-h-0 flex-1 bg-white">
           {isLoading ? (
             <div className="flex h-full items-center justify-center text-sm text-slate-400">Loading notebook...</div>
           ) : activeItem ? (
@@ -238,7 +271,11 @@ function App() {
             <div className="flex items-center justify-between border-b border-slate-200 bg-white/60 p-4">
               <div>
                 <h3 className="text-sm font-bold uppercase tracking-tight">AI Panel</h3>
-                <p className="text-[11px] text-slate-400">Notebook-aware AI wiring is the next migration step.</p>
+                <p className="text-[11px] text-slate-400">
+                  {agentRunState === "running"
+                    ? "Collaborating on the active notebook item."
+                    : "Notebook-aware chat and write-back are active."}
+                </p>
               </div>
               <button
                 className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:border-slate-400"
@@ -248,10 +285,72 @@ function App() {
                 <PanelRightClose size={15} />
               </button>
             </div>
-            <div className="flex flex-1 items-center justify-center p-6">
-              <div className="max-w-[240px] rounded-2xl border border-dashed border-slate-300 bg-white/80 p-5 text-sm leading-relaxed text-slate-500">
-                Current focus is notebook creation, editing, and reliable save semantics. AI chat will move to notebook item context after the save pipeline is in place.
+
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="flex-1 space-y-4 overflow-y-auto p-4">
+                {chatMessages.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white/80 p-5 text-sm leading-relaxed text-slate-500">
+                    Ask the assistant to revise the active draft, summarize notes, or pull context from other notebook items.
+                  </div>
+                ) : (
+                  chatMessages.map((message) => (
+                    <div
+                      className={
+                        message.role === "user"
+                          ? "ml-6 rounded-2xl bg-slate-900 px-4 py-3 text-sm text-white"
+                          : "mr-6 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
+                      }
+                      key={message.id}
+                    >
+                      <div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        <Bot size={12} />
+                        <span>{message.role === "user" ? "You" : "Assistant"}</span>
+                      </div>
+                      <div className="whitespace-pre-wrap leading-6">
+                        {message.content || (message.status === "streaming" ? "Thinking..." : "")}
+                      </div>
+                    </div>
+                  ))
+                )}
+
+                {toolEvents.length > 0 ? (
+                  <div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Tool Activity</p>
+                    {toolEvents.map((event) => (
+                      <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600" key={event.id}>
+                        <div className="font-semibold text-slate-700">{event.toolName}</div>
+                        <div className="mt-1 truncate">{event.argsSummary || "No arguments preview"}</div>
+                        <div className="mt-1 text-slate-400">{event.resultSummary || event.status}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
+
+              <form className="border-t border-slate-200 bg-white/70 p-4" onSubmit={(event) => void submitChat(event)}>
+                <textarea
+                  className="min-h-[96px] w-full resize-none rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-primary"
+                  disabled={!activeItem || isGenerating}
+                  onChange={(event) => setChatInput(event.target.value)}
+                  placeholder="Ask AI to refine the active item or use notebook context..."
+                  value={chatInput}
+                />
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <p className="text-[11px] text-slate-400">
+                    {syncState === "saved"
+                      ? "AI reads the latest synced notebook item."
+                      : "AI chat waits for the current item to sync first."}
+                  </p>
+                  <button
+                    className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!activeItem || isGenerating || !chatInput.trim()}
+                    type="submit"
+                  >
+                    <SendHorizontal size={14} />
+                    {isGenerating ? "Working..." : "Send"}
+                  </button>
+                </div>
+              </form>
             </div>
           </aside>
         </>

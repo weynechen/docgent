@@ -8,6 +8,16 @@
 
 **Tech Stack:** FastAPI, SQLAlchemy, Alembic, React 19, Zustand, Tiptap, IndexedDB, Vitest, HTTPX, uv, npm
 
+## 状态更新（2026-03-15）
+
+- 已完成 notebook 与 notebook item 的后端模型、服务、REST API 和迁移
+- 已完成前端 notebook-first 编辑壳、自动保存、IndexedDB 本地缓冲与同步状态栏
+- 已完成 notebook-aware AI Chat：
+  - websocket 支持 `notebook_id` / `item_id`
+  - agent tools 支持 `ListItems`、`Read`、`Write`
+  - 前端右栏已恢复真实聊天输入、流式消息与 notebook item 写回
+- 当前未完成项主要是浏览器手工回归、冲突处理 UX 打磨，以及外链/导入扩展实现
+
 ---
 
 ## File Structure

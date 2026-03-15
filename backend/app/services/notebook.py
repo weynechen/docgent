@@ -64,6 +64,14 @@ class NotebookService:
         await self.db.commit()
         return item
 
+    async def get_item(self, item_id: UUID) -> NotebookItem:
+        """Get one notebook item."""
+
+        item = await notebook_repo.get_item_by_id(self.db, item_id)
+        if item is None:
+            raise NotFoundError(message="Notebook item not found", details={"item_id": str(item_id)})
+        return item
+
     async def update_item(
         self,
         *,
@@ -74,9 +82,7 @@ class NotebookService:
     ) -> NotebookItem:
         """Update an item if its base revision still matches."""
 
-        item = await notebook_repo.get_item_by_id(self.db, item_id)
-        if item is None:
-            raise NotFoundError(message="Notebook item not found", details={"item_id": str(item_id)})
+        item = await self.get_item(item_id)
         if item.server_revision != base_revision:
             raise BadRequestError(
                 message="Notebook item revision is outdated. Reload the latest item before saving.",

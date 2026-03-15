@@ -11,7 +11,8 @@ export interface SelectionContext {
   start: number;
   end: number;
   text: string;
-  docPath: string;
+  docPath?: string;
+  itemId?: string;
 }
 
 export interface EditRequest {
@@ -23,8 +24,10 @@ export interface EditRequest {
 }
 
 export interface AgentChatRequest {
-  sessionId: string;
-  docPath: string;
+  sessionId?: string;
+  docPath?: string;
+  notebookId?: string;
+  itemId?: string;
   message: string;
   history: AgentChatHistoryMessage[];
   conversationId?: string;
@@ -188,6 +191,20 @@ export interface AgentWorkspaceFileUpdatedEvent {
   };
 }
 
+export interface AgentNotebookItemUpdatedEvent {
+  type: "notebook_item_updated";
+  data: {
+    item_id: string;
+    notebook_id: string;
+    revision: number;
+    content: string;
+    title: string;
+    item_type: "draft" | "note";
+    content_format: "markdown";
+    order_index: number;
+  };
+}
+
 export interface AgentFinalResultEvent {
   type: "final_result";
   data: {
@@ -217,6 +234,7 @@ export type AgentSocketEvent =
   | AgentToolCallEvent
   | AgentToolResultEvent
   | AgentWorkspaceFileUpdatedEvent
+  | AgentNotebookItemUpdatedEvent
   | AgentFinalResultEvent
   | AgentCompleteEvent
   | AgentErrorEvent;

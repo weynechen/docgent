@@ -58,3 +58,39 @@ def build_workspace_chat_system_prompt(
         + "Before writing, verify that the selected text you are changing matches the provided selection context. If it does not match, ask a clarifying question instead of editing the wrong passage.\n"
         + selection_block
     )
+
+
+def build_notebook_chat_system_prompt(
+    *,
+    active_item_title: str,
+    selection_start: int | None = None,
+    selection_end: int | None = None,
+    selection_text: str | None = None,
+) -> str:
+    """Build a system prompt for the notebook-aware chat agent."""
+
+    selection_block = (
+        "Current selection context:\n"
+        + (
+            f"Selection range: {selection_start}-{selection_end}\n"
+            if selection_start is not None and selection_end is not None
+            else ""
+        )
+        + f"Selected text:\n{selection_text}\n"
+        if selection_text and selection_text.strip()
+        else "There is no active text selection. Decide yourself whether to read, search, answer, or edit.\n"
+    )
+
+    return (
+        DEFAULT_SYSTEM_PROMPT
+        + "\n"
+        + f"The active notebook item title is: {active_item_title}.\n"
+        + "You can use ListItems, Read, Write, and WebSearch when needed.\n"
+        + "Use Write only when you have a concrete notebook item update to apply.\n"
+        + "If the user asks you to translate, rewrite, polish, shorten, expand, fix, or otherwise modify the active item, you must use Read and then Write the full updated Markdown back to the notebook item.\n"
+        + "Do not reply with transformed notebook text in chat without writing it back when the user's intent is to update the active item.\n"
+        + "Use ListItems when the user refers to another draft or note inside the notebook.\n"
+        + "If there is an active selection and the user refers to the selection, highlighted text, this paragraph, this passage, or asks to modify only part of the item, treat the selected text as the only allowed edit target unless the user explicitly asks for broader changes.\n"
+        + "Before writing, verify that the selected text you are changing matches the provided selection context. If it does not match, ask a clarifying question instead of editing the wrong passage.\n"
+        + selection_block
+    )

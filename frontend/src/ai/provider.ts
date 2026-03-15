@@ -5,6 +5,7 @@ import type {
   AgentErrorEvent,
   AgentFinalResultEvent,
   AgentModelRequestStartEvent,
+  AgentNotebookItemUpdatedEvent,
   AgentSocketEvent,
   AgentTextDeltaEvent,
   AgentToolCallEvent,
@@ -46,6 +47,7 @@ interface AgentChatHandlers {
   onToolCall?: (event: AgentToolCallEvent) => void;
   onToolResult?: (event: AgentToolResultEvent) => void;
   onWorkspaceFileUpdated?: (event: AgentWorkspaceFileUpdatedEvent) => void;
+  onNotebookItemUpdated?: (event: AgentNotebookItemUpdatedEvent) => void;
   onFinalResult?: (event: AgentFinalResultEvent) => void;
   onComplete?: (event: AgentCompleteEvent) => void;
   onError?: (event: AgentErrorEvent) => void;
@@ -89,6 +91,7 @@ function isAgentSocketEvent(value: unknown): value is AgentSocketEvent {
     event.type === "tool_call" ||
     event.type === "tool_result" ||
     event.type === "workspace_file_updated" ||
+    event.type === "notebook_item_updated" ||
     event.type === "final_result" ||
     event.type === "complete" ||
     event.type === "error"
@@ -231,6 +234,8 @@ export async function startAgentChatRun(
           conversation_id: input.conversationId,
           session_id: input.sessionId,
           doc_path: input.docPath,
+          notebook_id: input.notebookId,
+          item_id: input.itemId,
           selection: input.selection,
         }),
       );
@@ -284,6 +289,9 @@ export async function startAgentChatRun(
           break;
         case "workspace_file_updated":
           handlers.onWorkspaceFileUpdated?.(parsed);
+          break;
+        case "notebook_item_updated":
+          handlers.onNotebookItemUpdated?.(parsed);
           break;
         case "final_result":
           handlers.onFinalResult?.(parsed);
