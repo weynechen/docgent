@@ -40,6 +40,22 @@ function makeNotebook(id: string, itemId: string): NotebookRecord {
   };
 }
 
+type RemoteStoreWithRename = NotebookStoreApi & {
+  updateNotebook(input: { notebookId: string; title: string }): Promise<NotebookRecord>;
+};
+
+type StoreStateWithRename = ReturnType<ReturnType<typeof createNotebookStore>["getState"]> & {
+  renameNotebook(notebookId: string, title: string): Promise<void>;
+  renameItem(itemId: string, title: string): Promise<void>;
+};
+
+function updateNotebookResult(notebook: NotebookRecord, title = notebook.title): NotebookRecord {
+  return {
+    ...notebook,
+    title,
+  };
+}
+
 describe("notebook store", () => {
   it("creates a notebook and opens the seeded draft", async () => {
     const notebook = makeNotebook("nb-1", "item-1");
@@ -47,6 +63,7 @@ describe("notebook store", () => {
       listNotebooks: async () => [],
       getNotebook: async () => notebook,
       createNotebook: async () => notebook,
+      updateNotebook: async () => updateNotebookResult(notebook),
       createItem: async () => notebook.items[0],
       createSource: async () => makeSource(notebook.id),
       updateItem: async () => notebook.items[0],
@@ -67,6 +84,7 @@ describe("notebook store", () => {
       listNotebooks: async () => [],
       getNotebook: async () => notebook,
       createNotebook,
+      updateNotebook: async () => updateNotebookResult(notebook),
       createItem: async () => notebook.items[0],
       createSource: async () => makeSource(notebook.id),
       updateItem: async () => notebook.items[0],
@@ -101,6 +119,7 @@ describe("notebook store", () => {
       listNotebooks: async () => [notebook],
       getNotebook: async () => notebook,
       createNotebook: async () => notebook,
+      updateNotebook: async () => updateNotebookResult(notebook),
       createItem: async () => notebook.items[0],
       createSource: async () => makeSource(notebook.id),
       updateItem: async () => notebook.items[0],
@@ -114,12 +133,85 @@ describe("notebook store", () => {
     expect(store.getState().activeItem?.type).toBe("note");
   });
 
+  it("renames the active notebook and updates the notebook list", async () => {
+    const notebook = makeNotebook("nb-1", "item-1");
+    const remoteStore = {
+      listNotebooks: async () => [notebook],
+      getNotebook: async () => notebook,
+      createNotebook: async () => notebook,
+      createItem: async () => notebook.items[0],
+      createSource: async () => makeSource(notebook.id),
+      updateItem: async () => notebook.items[0],
+      updateNotebook: async () => ({
+        ...notebook,
+        title: "Renamed notebook",
+      }),
+    } as RemoteStoreWithRename;
+
+    const store = createNotebookStore(remoteStore);
+    await store.getState().loadNotebooks();
+    await (store.getState() as StoreStateWithRename).renameNotebook("nb-1", "Renamed notebook");
+
+    expect(store.getState().activeNotebook?.title).toBe("Renamed notebook");
+    expect(store.getState().notebooks[0]?.title).toBe("Renamed notebook");
+  });
+
+  it("renames the active item and updates the active notebook", async () => {
+    const notebook = makeNotebook("nb-1", "item-1");
+    const remoteStore = {
+      listNotebooks: async () => [notebook],
+      getNotebook: async () => notebook,
+      createNotebook: async () => notebook,
+      updateNotebook: async () => updateNotebookResult(notebook),
+      createItem: async () => notebook.items[0],
+      createSource: async () => makeSource(notebook.id),
+      updateItem: async () => ({
+        ...notebook.items[0],
+        title: "Renamed draft",
+      }),
+    } as NotebookStoreApi;
+
+    const store = createNotebookStore(remoteStore);
+    await store.getState().loadNotebooks();
+    await (store.getState() as StoreStateWithRename).renameItem("item-1", "Renamed draft");
+
+    expect(store.getState().activeItem?.title).toBe("Renamed draft");
+    expect(store.getState().activeNotebook?.items[0]?.title).toBe("Renamed draft");
+  });
+
+  it("preserves dirty content when renaming the active item", async () => {
+    const notebook = makeNotebook("nb-1", "item-1");
+    const remoteStore = {
+      listNotebooks: async () => [notebook],
+      getNotebook: async () => notebook,
+      createNotebook: async () => notebook,
+      updateNotebook: async () => updateNotebookResult(notebook),
+      createItem: async () => notebook.items[0],
+      createSource: async () => makeSource(notebook.id),
+      updateItem: async () => ({
+        ...notebook.items[0],
+        title: "Renamed draft",
+        content: "",
+      }),
+    } as NotebookStoreApi;
+
+    const store = createNotebookStore(remoteStore);
+    await store.getState().loadNotebooks();
+    store.getState().updateActiveItemContent("# Local draft");
+    await (store.getState() as StoreStateWithRename).renameItem("item-1", "Renamed draft");
+
+    expect(store.getState().activeItem?.title).toBe("Renamed draft");
+    expect(store.getState().activeItem?.content).toBe("# Local draft");
+    expect(store.getState().activeItem?.isDirty).toBe(true);
+  });
+
   it("marks the active item dirty when content changes", async () => {
     const notebook = makeNotebook("nb-1", "item-1");
     const remoteStore: NotebookStoreApi = {
       listNotebooks: async () => [notebook],
       getNotebook: async () => notebook,
       createNotebook: async () => notebook,
+      updateNotebook: async () => updateNotebookResult(notebook),
       createItem: async () => notebook.items[0],
       createSource: async () => makeSource(notebook.id),
       updateItem: async () => notebook.items[0],
@@ -139,6 +231,7 @@ describe("notebook store", () => {
       listNotebooks: async () => [notebook],
       getNotebook: async () => notebook,
       createNotebook: async () => notebook,
+      updateNotebook: async () => updateNotebookResult(notebook),
       createItem: async () => notebook.items[0],
       createSource: async () => makeSource(notebook.id),
       updateItem: async () => ({
@@ -213,6 +306,7 @@ describe("notebook store", () => {
       listNotebooks: async () => [notebook],
       getNotebook: async () => remoteNotebook,
       createNotebook: async () => notebook,
+      updateNotebook: async () => updateNotebookResult(notebook),
       createItem: async () => notebook.items[0],
       createSource: async () => makeSource(notebook.id),
       updateItem: async () => {
@@ -263,6 +357,7 @@ describe("notebook store", () => {
       listNotebooks: async () => [notebook],
       getNotebook: async () => currentNotebook,
       createNotebook: async () => notebook,
+      updateNotebook: async () => updateNotebookResult(currentNotebook),
       createItem: vi.fn(async (input) => {
         const item = await createItem(input);
         currentNotebook = {
@@ -305,6 +400,7 @@ describe("notebook store", () => {
       listNotebooks: async () => [notebook],
       getNotebook: async () => notebook,
       createNotebook: async () => notebook,
+      updateNotebook: async () => updateNotebookResult(notebook),
       createItem: async () => notebook.items[0],
       createSource,
       updateItem: async () => notebook.items[0],

@@ -30,7 +30,9 @@ function App() {
     isGenerating,
     loadNotebooks,
     createNotebook,
+    renameNotebook,
     createItem,
+    renameItem,
     createSource,
     setActiveNotebook,
     setActiveItem,
@@ -229,6 +231,22 @@ function App() {
     await reloadConflictedItem();
   };
 
+  const handleRenameNotebook = async (notebookId: string, title: string) => {
+    try {
+      await renameNotebook(notebookId, title);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Failed to rename notebook.");
+    }
+  };
+
+  const handleRenameItem = async (itemId: string, title: string) => {
+    try {
+      await renameItem(itemId, title);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Failed to rename item.");
+    }
+  };
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#f6f6f8] font-sans text-slate-900">
       {!isLeftCollapsed ? (
@@ -241,6 +259,8 @@ function App() {
               onCreateItem={(type) => void createItem(type)}
               onCreateNotebook={() => void createNotebook()}
               onCreateSource={() => void handleCreateSource()}
+              onRenameItem={handleRenameItem}
+              onRenameNotebook={handleRenameNotebook}
               onSelectItem={setActiveItem}
               onSelectNotebook={setActiveNotebook}
             />

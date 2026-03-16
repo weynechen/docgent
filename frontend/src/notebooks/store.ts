@@ -48,7 +48,9 @@ export interface NotebookStoreState {
   isGenerating: boolean;
   loadNotebooks: () => Promise<void>;
   createNotebook: () => Promise<void>;
+  renameNotebook: (notebookId: string, title: string) => Promise<void>;
   createItem: (type: "draft" | "note") => Promise<void>;
+  renameItem: (itemId: string, title: string) => Promise<void>;
   createSource: (input: {
     type: "external_link" | "imported_file";
     title: string;
@@ -267,6 +269,24 @@ function createNotebookState(remoteStore: NotebookStoreApi, aiClient: NotebookAi
         }));
       },
 
+      async renameNotebook(notebookId, title) {
+        const nextTitle = title.trim();
+        if (!nextTitle) {
+          return;
+        }
+
+        closeActiveChatStream();
+        const current = get();
+        const renamedNotebook = await remoteStore.updateNotebook({
+          notebookId,
+          title: nextTitle,
+        });
+        const activeItemId =
+          current.activeNotebook?.id === renamedNotebook.id ? current.activeItem?.id ?? selectDefaultItem(renamedNotebook)?.id : undefined;
+        const merged = mergeNotebook(renamedNotebook, activeItemId);
+        set(merged);
+      },
+
       async createItem(type) {
         const notebook = get().activeNotebook;
         if (!notebook) {
@@ -289,6 +309,46 @@ function createNotebookState(remoteStore: NotebookStoreApi, aiClient: NotebookAi
           activeNotebook: updatedNotebook,
           activeItem: item,
           ...resetChatState(),
+        }));
+      },
+
+      async renameItem(itemId, title) {
+        const nextTitle = title.trim();
+        if (!nextTitle) {
+          return;
+        }
+
+        const current = get();
+        const activeNotebook = current.activeNotebook;
+        if (!activeNotebook) {
+          return;
+        }
+
+        const item = activeNotebook.items.find((entry) => entry.id === itemId);
+        if (!item) {
+          return;
+        }
+
+        closeActiveChatStream();
+        const updatedItem = await remoteStore.updateItem({
+          itemId,
+          title: nextTitle,
+          baseRevision: item.serverRevision,
+        });
+        const mergedItem: NotebookItemRecord = item.isDirty
+          ? {
+              ...item,
+              title: updatedItem.title,
+            }
+          : updatedItem;
+        const updatedNotebook: NotebookRecord = {
+          ...activeNotebook,
+          items: activeNotebook.items.map((entry) => (entry.id === mergedItem.id ? mergedItem : entry)),
+        };
+        set((state) => ({
+          notebooks: state.notebooks.map((entry) => (entry.id === updatedNotebook.id ? updatedNotebook : entry)),
+          activeNotebook: state.activeNotebook?.id === updatedNotebook.id ? updatedNotebook : state.activeNotebook,
+          activeItem: state.activeItem?.id === mergedItem.id ? mergedItem : state.activeItem,
         }));
       },
 

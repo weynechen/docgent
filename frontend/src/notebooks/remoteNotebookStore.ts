@@ -99,6 +99,28 @@ export const remoteNotebookStore: NotebookStoreApi = {
     return toNotebook(notebook);
   },
 
+  async updateNotebook(input) {
+    const notebook = await requestJson<
+      Omit<NotebookRecord, "items" | "sources"> & {
+        items: Array<Omit<NotebookItemRecord, "isDirty">>;
+        sources: NotebookSourceRecord[];
+      }
+    >(
+      `/api/v1/notebooks/${input.notebookId}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: input.title,
+        }),
+      },
+      "Failed to update notebook.",
+    );
+    return toNotebook(notebook);
+  },
+
   async createItem(input) {
     const item = await requestJson<Omit<NotebookItemRecord, "isDirty">>(
       `/api/v1/notebooks/${input.notebookId}/items`,

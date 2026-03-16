@@ -13,6 +13,7 @@ from app.schemas.notebook import (
     NotebookRead,
     NotebookSourceCreate,
     NotebookSourceRead,
+    NotebookUpdate,
 )
 
 router = APIRouter(prefix="/notebooks")
@@ -45,6 +46,20 @@ async def get_notebook(
     """Get one notebook."""
 
     return await notebook_service.get_notebook(notebook_id)
+
+
+@router.patch("/{notebook_id}", response_model=NotebookRead)
+async def update_notebook(
+    notebook_id: UUID,
+    payload: NotebookUpdate,
+    notebook_service: NotebookSvc,
+) -> NotebookRead:
+    """Update one notebook title."""
+
+    return await notebook_service.update_notebook(
+        notebook_id=notebook_id,
+        title=payload.title,
+    )
 
 
 @router.post("/{notebook_id}/items", response_model=NotebookItemRead, status_code=status.HTTP_201_CREATED)

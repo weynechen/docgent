@@ -53,6 +53,21 @@ async def get_item_by_id(db: AsyncSession, item_id: UUID) -> NotebookItem | None
     return await db.get(NotebookItem, item_id)
 
 
+async def update_notebook(
+    db: AsyncSession,
+    *,
+    notebook: Notebook,
+    title: str,
+) -> Notebook:
+    """Update an existing notebook title."""
+
+    notebook.title = title
+    db.add(notebook)
+    await db.flush()
+    await db.refresh(notebook)
+    return notebook
+
+
 async def create_item(
     db: AsyncSession,
     *,

@@ -69,6 +69,12 @@ class NotebookCreate(BaseSchema):
     title: str | None = Field(default=None, max_length=255)
 
 
+class NotebookUpdate(BaseSchema):
+    """Request payload for updating a notebook."""
+
+    title: str = Field(min_length=1, max_length=255)
+
+
 class NotebookRead(BaseSchema, TimestampSchema):
     """Notebook API response."""
 

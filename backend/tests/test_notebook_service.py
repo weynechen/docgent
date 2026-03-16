@@ -106,6 +106,29 @@ class TestNotebookService:
         notebook_service.db.commit.assert_awaited_once()
 
     @pytest.mark.anyio
+    async def test_update_notebook_title(
+        self,
+        notebook_service: NotebookService,
+    ) -> None:
+        """Updating a notebook title should persist the new name."""
+
+        notebook = make_notebook(title="Old title")
+        updated_notebook = make_notebook(notebook_id=notebook.id, title="New title")
+
+        with patch("app.services.notebook.notebook_repo") as mock_repo:
+            mock_repo.get_notebook_with_items = AsyncMock(side_effect=[notebook, updated_notebook])
+            mock_repo.update_notebook = AsyncMock(return_value=updated_notebook)
+
+            result = await notebook_service.update_notebook(
+                notebook_id=notebook.id,
+                title="New title",
+            )
+
+        assert result.title == "New title"
+        mock_repo.update_notebook.assert_awaited_once()
+        notebook_service.db.commit.assert_awaited_once()
+
+    @pytest.mark.anyio
     async def test_update_item_rejects_stale_revision(
         self,
         notebook_service: NotebookService,

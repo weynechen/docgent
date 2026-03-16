@@ -86,6 +86,7 @@ def mock_notebook_service() -> MagicMock:
     service.create_notebook = AsyncMock(return_value=notebook)
     service.list_notebooks = AsyncMock(return_value=[notebook])
     service.get_notebook = AsyncMock(return_value=notebook)
+    service.update_notebook = AsyncMock(return_value=make_notebook(notebook_id=notebook.id, title="Renamed notebook", items=notebook.items))
     service.create_item = AsyncMock(return_value=notebook_item)
     service.create_source = AsyncMock(return_value=notebook.sources[0])
     service.update_item = AsyncMock(return_value=updated_item)
@@ -155,6 +156,20 @@ async def test_get_notebook(client_with_mock_notebook_service: AsyncClient, mock
     response = await client_with_mock_notebook_service.get(f"{settings.API_V1_STR}/notebooks/{notebook_id}")
     assert response.status_code == 200
     mock_notebook_service.get_notebook.assert_awaited_once_with(notebook_id)
+
+
+@pytest.mark.anyio
+async def test_update_notebook_title(client_with_mock_notebook_service: AsyncClient):
+    """Updating a notebook title should return the renamed notebook."""
+
+    notebook_id = uuid4()
+    response = await client_with_mock_notebook_service.patch(
+        f"{settings.API_V1_STR}/notebooks/{notebook_id}",
+        json={"title": "Renamed notebook"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["title"] == "Renamed notebook"
 
 
 @pytest.mark.anyio

@@ -44,6 +44,23 @@ class NotebookService:
 
         return await self._get_notebook(notebook_id)
 
+    async def update_notebook(
+        self,
+        *,
+        notebook_id: UUID,
+        title: str,
+    ) -> Notebook:
+        """Update one notebook title."""
+
+        notebook = await self._get_notebook(notebook_id)
+        updated = await notebook_repo.update_notebook(
+            self.db,
+            notebook=notebook,
+            title=title,
+        )
+        await self.db.commit()
+        return updated
+
     async def create_item(
         self,
         *,

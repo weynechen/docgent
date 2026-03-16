@@ -1,16 +1,26 @@
 import { BookOpenText, FilePenLine, FileText, FolderPen, Link2, NotebookPen, Plus } from "lucide-react";
+import { useState, type KeyboardEvent } from "react";
 
-import type { NotebookRecord } from "./types";
+import type { NotebookItemRecord, NotebookRecord } from "./types";
 
 interface NotebookSidebarProps {
   notebooks: NotebookRecord[];
   activeNotebookId?: string;
   activeItemId?: string;
   onCreateNotebook: () => void;
+  onRenameNotebook: (notebookId: string, title: string) => Promise<void>;
   onCreateItem: (type: "draft" | "note") => void;
+  onRenameItem: (itemId: string, title: string) => Promise<void>;
   onCreateSource: () => void;
   onSelectNotebook: (notebookId: string) => void;
   onSelectItem: (itemId: string) => void;
+}
+
+interface EditingState {
+  kind: "notebook" | "item";
+  id: string;
+  value: string;
+  initialValue: string;
 }
 
 export function NotebookSidebar({
@@ -18,12 +28,69 @@ export function NotebookSidebar({
   activeNotebookId,
   activeItemId,
   onCreateNotebook,
+  onRenameNotebook,
   onCreateItem,
+  onRenameItem,
   onCreateSource,
   onSelectNotebook,
   onSelectItem,
 }: NotebookSidebarProps) {
   const activeNotebook = notebooks.find((entry) => entry.id === activeNotebookId);
+  const [editing, setEditing] = useState<EditingState | null>(null);
+
+  const beginNotebookRename = (notebook: NotebookRecord) => {
+    setEditing({
+      kind: "notebook",
+      id: notebook.id,
+      value: notebook.title,
+      initialValue: notebook.title,
+    });
+  };
+
+  const beginItemRename = (item: NotebookItemRecord) => {
+    setEditing({
+      kind: "item",
+      id: item.id,
+      value: item.title,
+      initialValue: item.title,
+    });
+  };
+
+  const submitRename = async () => {
+    if (!editing) {
+      return;
+    }
+
+    const nextTitle = editing.value.trim();
+    const pending = editing;
+    setEditing(null);
+
+    if (!nextTitle || nextTitle === pending.initialValue) {
+      return;
+    }
+
+    if (pending.kind === "notebook") {
+      await onRenameNotebook(pending.id, nextTitle);
+      return;
+    }
+
+    await onRenameItem(pending.id, nextTitle);
+  };
+
+  const cancelRename = () => {
+    setEditing(null);
+  };
+
+  const handleRenameKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void submitRename();
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      cancelRename();
+    }
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -50,22 +117,50 @@ export function NotebookSidebar({
       <div className="flex-1 overflow-y-auto p-3">
         <div className="space-y-2">
           {notebooks.map((notebook) => (
-            <button
-              className={
-                notebook.id === activeNotebookId
-                  ? "w-full rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-left"
-                  : "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-left transition hover:border-slate-300"
-              }
-              key={notebook.id}
-              onClick={() => onSelectNotebook(notebook.id)}
-              type="button"
-            >
-              <div className="flex items-center gap-2">
-                <BookOpenText size={15} className={notebook.id === activeNotebookId ? "text-primary" : "text-slate-400"} />
-                <span className="truncate text-sm font-semibold text-slate-700">{notebook.title}</span>
+            editing?.kind === "notebook" && editing.id === notebook.id ? (
+              <div
+                className={
+                  notebook.id === activeNotebookId
+                    ? "w-full rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-left"
+                    : "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-left"
+                }
+                key={notebook.id}
+              >
+                <div className="flex items-center gap-2">
+                  <BookOpenText size={15} className={notebook.id === activeNotebookId ? "text-primary" : "text-slate-400"} />
+                  <input
+                    autoFocus
+                    className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm font-semibold text-slate-700 outline-none focus:border-primary"
+                    onBlur={() => void submitRename()}
+                    onChange={(event) =>
+                      setEditing((current) => (current ? { ...current, value: event.target.value } : current))
+                    }
+                    onFocus={(event) => event.currentTarget.select()}
+                    onKeyDown={handleRenameKeyDown}
+                    value={editing.value}
+                  />
+                </div>
+                <p className="mt-1 text-[11px] text-slate-400">{notebook.items.length} items</p>
               </div>
-              <p className="mt-1 text-[11px] text-slate-400">{notebook.items.length} items</p>
-            </button>
+            ) : (
+              <button
+                className={
+                  notebook.id === activeNotebookId
+                    ? "w-full rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-left"
+                    : "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-left transition hover:border-slate-300"
+                }
+                key={notebook.id}
+                onDoubleClick={() => beginNotebookRename(notebook)}
+                onClick={() => onSelectNotebook(notebook.id)}
+                type="button"
+              >
+                <div className="flex items-center gap-2">
+                  <BookOpenText size={15} className={notebook.id === activeNotebookId ? "text-primary" : "text-slate-400"} />
+                  <span className="truncate text-sm font-semibold text-slate-700">{notebook.title}</span>
+                </div>
+                <p className="mt-1 text-[11px] text-slate-400">{notebook.items.length} items</p>
+              </button>
+            )
           ))}
         </div>
 
@@ -94,24 +189,54 @@ export function NotebookSidebar({
             </div>
             <div className="space-y-1">
               {activeNotebook.items.map((item) => (
-                <button
-                  className={
-                    item.id === activeItemId
-                      ? "flex w-full items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-left text-white"
-                      : "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-slate-600 transition hover:bg-slate-200/60"
-                  }
-                  key={item.id}
-                  onClick={() => onSelectItem(item.id)}
-                  type="button"
-                >
-                  <FileText size={14} className={item.id === activeItemId ? "text-white" : "text-slate-400"} />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{item.title}</p>
-                    <p className={item.id === activeItemId ? "text-[10px] text-slate-300" : "text-[10px] text-slate-400"}>
-                      {item.type === "draft" ? "Draft" : "Note"}
-                    </p>
+                editing?.kind === "item" && editing.id === item.id ? (
+                  <div
+                    className={
+                      item.id === activeItemId
+                        ? "flex w-full items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-left text-white"
+                        : "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-slate-600"
+                    }
+                    key={item.id}
+                  >
+                    <FileText size={14} className={item.id === activeItemId ? "text-white" : "text-slate-400"} />
+                    <div className="min-w-0 flex-1">
+                      <input
+                        autoFocus
+                        className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm font-medium text-slate-700 outline-none focus:border-primary"
+                        onBlur={() => void submitRename()}
+                        onChange={(event) =>
+                          setEditing((current) => (current ? { ...current, value: event.target.value } : current))
+                        }
+                        onFocus={(event) => event.currentTarget.select()}
+                        onKeyDown={handleRenameKeyDown}
+                        value={editing.value}
+                      />
+                      <p className={item.id === activeItemId ? "mt-1 text-[10px] text-slate-300" : "mt-1 text-[10px] text-slate-400"}>
+                        {item.type === "draft" ? "Draft" : "Note"}
+                      </p>
+                    </div>
                   </div>
-                </button>
+                ) : (
+                  <button
+                    className={
+                      item.id === activeItemId
+                        ? "flex w-full items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-left text-white"
+                        : "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-slate-600 transition hover:bg-slate-200/60"
+                    }
+                    key={item.id}
+                    onDoubleClick={() => beginItemRename(item)}
+                    onClick={() => onSelectItem(item.id)}
+                    type="button"
+                  >
+                    <FileText size={14} className={item.id === activeItemId ? "text-white" : "text-slate-400"} />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{item.title}</p>
+                      <p className={item.id === activeItemId ? "text-[10px] text-slate-300" : "text-[10px] text-slate-400"}>
+                        {item.type === "draft" ? "Draft" : "Note"}
+                      </p>
+                    </div>
+                  </button>
+                )
               ))}
             </div>
           </section>
