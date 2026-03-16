@@ -45,6 +45,8 @@ type RemoteStoreWithRename = NotebookStoreApi & {
 };
 
 type StoreStateWithRename = ReturnType<ReturnType<typeof createNotebookStore>["getState"]> & {
+  enterNotebook(notebookId: string): void;
+  exitNotebookDetail(): void;
   renameNotebook(notebookId: string, title: string): Promise<void>;
   renameItem(itemId: string, title: string): Promise<void>;
 };
@@ -75,6 +77,7 @@ describe("notebook store", () => {
 
     expect(store.getState().activeNotebook?.title).toBe("Untitled notebook");
     expect(store.getState().activeItem?.type).toBe("draft");
+    expect(store.getState().workspaceView).toBe("notebook_list");
   });
 
   it("deduplicates concurrent first loads so only one notebook is created", async () => {
@@ -131,6 +134,83 @@ describe("notebook store", () => {
 
     expect(store.getState().activeItem?.id).toBe("item-2");
     expect(store.getState().activeItem?.type).toBe("note");
+  });
+
+  it("starts in notebook list view after loading notebooks", async () => {
+    const notebook = makeNotebook("nb-1", "item-1");
+    const remoteStore: NotebookStoreApi = {
+      listNotebooks: async () => [notebook],
+      getNotebook: async () => notebook,
+      createNotebook: async () => notebook,
+      updateNotebook: async () => updateNotebookResult(notebook),
+      createItem: async () => notebook.items[0],
+      createSource: async () => makeSource(notebook.id),
+      updateItem: async () => notebook.items[0],
+    };
+
+    const store = createNotebookStore(remoteStore);
+    await store.getState().loadNotebooks();
+
+    expect(store.getState().workspaceView).toBe("notebook_list");
+  });
+
+  it("enters notebook detail without resetting the active item for the same notebook", async () => {
+    const notebook = {
+      ...makeNotebook("nb-1", "item-1"),
+      items: [
+        makeNotebook("nb-1", "item-1").items[0],
+        {
+          id: "item-2",
+          notebookId: "nb-1",
+          type: "note" as const,
+          title: "Excerpt",
+          content: "quoted text",
+          contentFormat: "markdown" as const,
+          orderIndex: 1,
+          serverRevision: 1,
+          isDirty: false,
+        },
+      ],
+    };
+    const remoteStore: NotebookStoreApi = {
+      listNotebooks: async () => [notebook],
+      getNotebook: async () => notebook,
+      createNotebook: async () => notebook,
+      updateNotebook: async () => updateNotebookResult(notebook),
+      createItem: async () => notebook.items[0],
+      createSource: async () => makeSource(notebook.id),
+      updateItem: async () => notebook.items[0],
+    };
+
+    const store = createNotebookStore(remoteStore);
+    await store.getState().loadNotebooks();
+    store.getState().setActiveItem("item-2");
+    (store.getState() as StoreStateWithRename).enterNotebook("nb-1");
+
+    expect(store.getState().workspaceView).toBe("notebook_detail");
+    expect(store.getState().activeItem?.id).toBe("item-2");
+  });
+
+  it("returns to notebook list view without losing the active notebook selection", async () => {
+    const notebook = makeNotebook("nb-1", "item-1");
+    const remoteStore: NotebookStoreApi = {
+      listNotebooks: async () => [notebook],
+      getNotebook: async () => notebook,
+      createNotebook: async () => notebook,
+      updateNotebook: async () => updateNotebookResult(notebook),
+      createItem: async () => notebook.items[0],
+      createSource: async () => makeSource(notebook.id),
+      updateItem: async () => notebook.items[0],
+    };
+
+    const store = createNotebookStore(remoteStore);
+    await store.getState().loadNotebooks();
+    (store.getState() as StoreStateWithRename).enterNotebook("nb-1");
+    (store.getState() as StoreStateWithRename).exitNotebookDetail();
+
+    expect(store.getState().workspaceView).toBe("notebook_list");
+    expect(store.getState().activeNotebook?.id).toBe("nb-1");
+    expect(store.getState().activeItem?.id).toBe("item-1");
   });
 
   it("renames the active notebook and updates the notebook list", async () => {

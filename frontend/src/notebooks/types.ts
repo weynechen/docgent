@@ -1,6 +1,7 @@
 export type NotebookSyncState = "saving" | "saved" | "offline" | "sync_failed" | "conflict";
 export type NotebookItemType = "draft" | "note";
 export type NotebookSourceType = "external_link" | "imported_file";
+export type NotebookWorkspaceView = "notebook_list" | "notebook_detail";
 
 export interface NotebookItemRecord {
   id: string;

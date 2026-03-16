@@ -53,6 +53,7 @@ describe("notebook persistence", () => {
       getNotebook: async () => ({ id: "nb-1", title: "Notebook", createdAt: "", updatedAt: null, sources: [], items: [item] }),
       listNotebooks: async () => [],
       createNotebook: async () => ({ id: "nb-1", title: "Notebook", createdAt: "", updatedAt: null, sources: [], items: [] }),
+      updateNotebook: async () => ({ id: "nb-1", title: "Notebook", createdAt: "", updatedAt: null, sources: [], items: [item] }),
       createItem: async () => item,
       createSource: async () => ({
         id: "source-1",
@@ -101,6 +102,7 @@ describe("notebook persistence", () => {
       getNotebook: async () => ({ id: "nb-1", title: "Notebook", createdAt: "", updatedAt: null, sources: [], items: [item] }),
       listNotebooks: async () => [],
       createNotebook: async () => ({ id: "nb-1", title: "Notebook", createdAt: "", updatedAt: null, sources: [], items: [] }),
+      updateNotebook: async () => ({ id: "nb-1", title: "Notebook", createdAt: "", updatedAt: null, sources: [], items: [item] }),
       createItem: async () => item,
       createSource: async () => ({
         id: "source-1",

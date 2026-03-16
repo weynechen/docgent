@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { useEditor } from "@tiptap/react";
-import { Bot, FileText, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, SendHorizontal } from "lucide-react";
+import { BookOpenText, Bot, ChevronLeft, FileText, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, SendHorizontal } from "lucide-react";
 
 import { NotebookConflictBanner } from "../notebooks/NotebookConflictBanner";
 import { SimpleEditor, createSimpleEditorExtensions } from "@/components/tiptap-templates/simple/simple-editor";
-import { NotebookSidebar } from "../notebooks/NotebookSidebar";
+import { NotebookDetailSidebar } from "../notebooks/NotebookDetailSidebar";
+import { NotebookListSidebar } from "../notebooks/NotebookListSidebar";
 import { NotebookStatusBar } from "../notebooks/NotebookStatusBar";
 import { useNotebookStore } from "../notebooks/store";
 import { docToMarkdown, markdownToDoc } from "../shared/markdown";
@@ -20,6 +21,7 @@ function App() {
   const {
     isLoading,
     notebooks,
+    workspaceView,
     activeNotebook,
     activeItem,
     activeConflict,
@@ -34,7 +36,8 @@ function App() {
     createItem,
     renameItem,
     createSource,
-    setActiveNotebook,
+    enterNotebook,
+    exitNotebookDetail,
     setActiveItem,
     updateActiveItemContent,
     setSelection,
@@ -58,7 +61,18 @@ function App() {
       characters: content.length,
     };
   }, [activeItem?.content]);
+  const workspaceStats = useMemo(() => {
+    return notebooks.reduce(
+      (summary, notebook) => ({
+        notebooks: summary.notebooks + 1,
+        items: summary.items + notebook.items.length,
+        sources: summary.sources + notebook.sources.length,
+      }),
+      { notebooks: 0, items: 0, sources: 0 },
+    );
+  }, [notebooks]);
   const isActiveConflict = activeConflict?.itemId === activeItem?.id;
+  const isNotebookDetail = workspaceView === "notebook_detail" && Boolean(activeNotebook);
 
   const editor = useEditor({
     extensions: createSimpleEditorExtensions(),
@@ -252,18 +266,24 @@ function App() {
       {!isLeftCollapsed ? (
         <>
           <aside className="shrink-0 border-r border-slate-200 bg-slate-50" style={{ width: leftWidth }}>
-            <NotebookSidebar
-              activeItemId={activeItem?.id}
-              activeNotebookId={activeNotebook?.id}
-              notebooks={notebooks}
-              onCreateItem={(type) => void createItem(type)}
-              onCreateNotebook={() => void createNotebook()}
-              onCreateSource={() => void handleCreateSource()}
-              onRenameItem={handleRenameItem}
-              onRenameNotebook={handleRenameNotebook}
-              onSelectItem={setActiveItem}
-              onSelectNotebook={setActiveNotebook}
-            />
+            {isNotebookDetail && activeNotebook ? (
+              <NotebookDetailSidebar
+                activeItemId={activeItem?.id}
+                notebook={activeNotebook}
+                onCreateItem={(type) => void createItem(type)}
+                onCreateSource={() => void handleCreateSource()}
+                onRenameItem={handleRenameItem}
+                onSelectItem={setActiveItem}
+              />
+            ) : (
+              <NotebookListSidebar
+                activeNotebookId={activeNotebook?.id}
+                notebooks={notebooks}
+                onCreateNotebook={() => void createNotebook()}
+                onEnterNotebook={enterNotebook}
+                onRenameNotebook={handleRenameNotebook}
+              />
+            )}
           </aside>
           <div
             className="w-1 shrink-0 cursor-col-resize bg-slate-200/70 transition-colors hover:bg-primary/40"
@@ -294,16 +314,50 @@ function App() {
               </button>
             )}
 
-            <div className="min-w-0 max-w-[420px]">
-              <div className="flex h-8 min-w-[160px] max-w-full items-center gap-2 rounded-t-md border border-b-0 border-slate-300 bg-white px-3 text-sm text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
-                <FileText size={14} className="shrink-0 text-slate-500" />
-                <span className="truncate">{activeItem?.title ?? "Untitled"}</span>
+            {isNotebookDetail ? (
+              <>
+                <button
+                  className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-300 bg-white px-2 text-xs font-medium text-slate-600 hover:border-slate-400"
+                  onClick={() => exitNotebookDetail()}
+                  type="button"
+                >
+                  <ChevronLeft size={14} />
+                  Notebooks
+                </button>
+                <div className="min-w-[180px] max-w-[220px]">
+                  <select
+                    aria-label="Switch notebook"
+                    className="h-8 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none"
+                    onChange={(event) => enterNotebook(event.target.value)}
+                    value={activeNotebook?.id}
+                  >
+                    {notebooks.map((notebook) => (
+                      <option key={notebook.id} value={notebook.id}>
+                        {notebook.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="min-w-0 max-w-[420px]">
+                  <div className="flex h-8 min-w-[160px] max-w-full items-center gap-2 rounded-t-md border border-b-0 border-slate-300 bg-white px-3 text-sm text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+                    <FileText size={14} className="shrink-0 text-slate-500" />
+                    <span className="truncate">{activeItem?.title ?? "Untitled"}</span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center gap-2">
+                <BookOpenText size={16} className="text-slate-400" />
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">Notebooks</p>
+                  <p className="text-[11px] text-slate-400">Choose a notebook before editing items or sources.</p>
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="flex-1 self-end border-b border-slate-200" />
 
-            {isRightCollapsed ? (
+            {isNotebookDetail && isRightCollapsed ? (
               <button
                 className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:border-slate-400"
                 onClick={() => setIsRightCollapsed(false)}
@@ -315,7 +369,7 @@ function App() {
           </div>
         </div>
 
-        {isActiveConflict && activeItem ? (
+        {isNotebookDetail && isActiveConflict && activeItem ? (
           <NotebookConflictBanner
             onKeepLocal={() => void keepLocalAsNewCopy()}
             onReload={() => void handleReloadConflict()}
@@ -324,7 +378,73 @@ function App() {
         ) : null}
 
         <div className="min-h-0 flex-1 bg-white">
-          {isLoading ? (
+          {!isNotebookDetail ? (
+            <div className="flex h-full items-center justify-center bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.10),_transparent_30%),linear-gradient(180deg,_#ffffff_0%,_#f7f8fb_100%)] p-8">
+              <div className="w-full max-w-3xl rounded-[28px] border border-slate-200 bg-white/90 p-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">Notebook Library</p>
+                <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">Step into one notebook at a time.</h1>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
+                  Keep notebooks as the container. Items and sources only appear after you enter one, so the hierarchy stays explicit.
+                </p>
+                <div className="mt-8 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Notebooks</p>
+                    <p className="mt-2 text-2xl font-semibold text-slate-900">{workspaceStats.notebooks}</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Items</p>
+                    <p className="mt-2 text-2xl font-semibold text-slate-900">{workspaceStats.items}</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Sources</p>
+                    <p className="mt-2 text-2xl font-semibold text-slate-900">{workspaceStats.sources}</p>
+                  </div>
+                </div>
+                <div className="mt-8 rounded-3xl border border-slate-200 bg-slate-50/70 p-5">
+                  {activeNotebook ? (
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Current notebook</p>
+                        <p className="mt-2 text-lg font-semibold text-slate-900">{activeNotebook.title}</p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {activeNotebook.items.length} items · {activeNotebook.sources.length} sources
+                        </p>
+                      </div>
+                      <div className="flex gap-3">
+                        {isLeftCollapsed ? (
+                          <button
+                            className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-400"
+                            onClick={() => setIsLeftCollapsed(false)}
+                            type="button"
+                          >
+                            Show notebook list
+                          </button>
+                        ) : null}
+                        <button
+                          className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                          onClick={() => enterNotebook(activeNotebook.id)}
+                          type="button"
+                        >
+                          Open notebook
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm text-slate-500">Create your first notebook to start drafting and collecting sources.</p>
+                      <button
+                        className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                        onClick={() => void createNotebook()}
+                        type="button"
+                      >
+                        Create notebook
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : isLoading ? (
             <div className="flex h-full items-center justify-center text-sm text-slate-400">Loading notebook...</div>
           ) : activeItem ? (
             <div className={isActiveConflict ? "h-full bg-slate-50/70" : "h-full"}>
@@ -335,15 +455,17 @@ function App() {
           )}
         </div>
 
-        <NotebookStatusBar
-          characters={stats.characters}
-          isDirty={activeItem?.isDirty ?? false}
-          syncState={syncState}
-          words={stats.words}
-        />
+        {isNotebookDetail ? (
+          <NotebookStatusBar
+            characters={stats.characters}
+            isDirty={activeItem?.isDirty ?? false}
+            syncState={syncState}
+            words={stats.words}
+          />
+        ) : null}
       </main>
 
-      {!isRightCollapsed ? (
+      {isNotebookDetail && !isRightCollapsed ? (
         <>
           <div
             className="w-1 shrink-0 cursor-col-resize bg-slate-200/70 transition-colors hover:bg-primary/40"

@@ -15,6 +15,7 @@ import type {
   NotebookSourceRecord,
   NotebookStoreApi,
   NotebookSyncState,
+  NotebookWorkspaceView,
 } from "./types";
 import { remoteNotebookStore } from "./remoteNotebookStore";
 import { createNotebookSyncEngine } from "./syncEngine";
@@ -36,6 +37,7 @@ export interface NotebookConflictState {
 export interface NotebookStoreState {
   isLoading: boolean;
   notebooks: NotebookRecord[];
+  workspaceView: NotebookWorkspaceView;
   activeNotebook?: NotebookRecord;
   activeItem?: NotebookItemRecord;
   activeConflict?: NotebookConflictState;
@@ -57,6 +59,8 @@ export interface NotebookStoreState {
     sourceUrl?: string;
     mimeType?: string;
   }) => Promise<void>;
+  enterNotebook: (notebookId: string) => void;
+  exitNotebookDetail: () => void;
   setActiveNotebook: (notebookId: string) => void;
   setActiveItem: (itemId: string) => void;
   updateActiveItemContent: (content: string) => void;
@@ -218,6 +222,7 @@ function createNotebookState(remoteStore: NotebookStoreApi, aiClient: NotebookAi
     return {
       isLoading: false,
       notebooks: [],
+      workspaceView: "notebook_list",
       syncState: "saved",
       chatMessages: [],
       toolEvents: [],
@@ -242,6 +247,7 @@ function createNotebookState(remoteStore: NotebookStoreApi, aiClient: NotebookAi
           set({
             isLoading: false,
             notebooks,
+            workspaceView: "notebook_list",
             activeNotebook,
             activeItem: selectDefaultItem(activeNotebook),
             ...resetChatState(),
@@ -263,6 +269,7 @@ function createNotebookState(remoteStore: NotebookStoreApi, aiClient: NotebookAi
         const notebook = await remoteStore.createNotebook();
         set((state) => ({
           notebooks: [notebook, ...state.notebooks],
+          workspaceView: "notebook_list",
           activeNotebook: notebook,
           activeItem: selectDefaultItem(notebook),
           ...resetChatState(),
@@ -366,6 +373,35 @@ function createNotebookState(remoteStore: NotebookStoreApi, aiClient: NotebookAi
           mimeType: input.mimeType,
         });
         mergeSource(source);
+      },
+
+      enterNotebook(notebookId) {
+        const current = get();
+        if (current.activeNotebook?.id === notebookId) {
+          set({ workspaceView: "notebook_detail" });
+          return;
+        }
+
+        closeActiveChatStream();
+        const notebook = current.notebooks.find((entry) => entry.id === notebookId);
+        if (!notebook) {
+          return;
+        }
+
+        set({
+          workspaceView: "notebook_detail",
+          activeNotebook: notebook,
+          activeItem: selectDefaultItem(notebook),
+          ...resetChatState(),
+        });
+      },
+
+      exitNotebookDetail() {
+        closeActiveChatStream();
+        set({
+          workspaceView: "notebook_list",
+          ...resetChatState(),
+        });
       },
 
       setActiveNotebook(notebookId) {

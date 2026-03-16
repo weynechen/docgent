@@ -21,9 +21,9 @@
 ### 前端工作区
 
 - `frontend/src/app/App.tsx`
-  - 负责 notebook 工作台布局、侧栏折叠/拖拽、状态栏、冲突横幅和右栏 AI 编排。
+  - 负责 notebook 二级工作区布局、侧栏折叠/拖拽、列表页与 detail 页切换、状态栏、冲突横幅和右栏 AI 编排。
 - `frontend/src/notebooks/store.ts`
-  - 负责 notebook/item 状态、自动保存、离线缓冲、冲突恢复、AI 会话状态与写回同步。
+  - 负责 notebook/item 状态、workspace view、自动保存、离线缓冲、冲突恢复、AI 会话状态与写回同步。
 
 ### 前端领域与表达层
 
@@ -32,7 +32,8 @@
   - `indexedDb.ts`：本地待同步编辑缓冲
   - `syncEngine.ts`：debounce、离线重放与冲突状态机
   - `NotebookConflictBanner.tsx`：冲突恢复横幅
-  - `NotebookSidebar.tsx`：notebook items 与 sources 双分区侧栏
+  - `NotebookListSidebar.tsx`：notebook 一级列表入口
+  - `NotebookDetailSidebar.tsx`：当前 notebook 的 items / sources detail 侧栏
 - `frontend/src/ai/`
   - `provider.ts`：前端 AI provider，负责启动 notebook-aware chat 请求并订阅 WebSocket 事件
 - `frontend/src/shared/`
@@ -68,6 +69,12 @@
   - 提供 notebook scoped 的 `ListItems` / `Read` / `Write` / `WebSearch`
 - `backend/app/api/routes/v1/agent.py`
   - 同时兼容旧 workspace 语义与新 notebook/item 语义，并在写回时发出 `notebook_item_updated`
+
+### 当前前端导航状态
+
+- 一级工作区先展示 notebook 列表与概览，不直接暴露 notebook 内部 item/source。
+- 进入 notebook detail 后，左栏只展示当前 notebook 的 items 与 sources，中间编辑器与右侧 AI 面板恢复工作态。
+- detail 顶栏提供返回 notebook 列表的入口和轻量 notebook switcher，而不是继续让多个 notebook 与内部内容同层并列。
 
 ### 仍保留的旧路径
 
