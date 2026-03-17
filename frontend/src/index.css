@@ -46,7 +46,9 @@
 .ProseMirror h2,
 .ProseMirror blockquote,
 .ProseMirror pre,
-.ProseMirror ul {
+.ProseMirror ul,
+.ProseMirror table,
+.ProseMirror hr {
   margin: 0 0 0.7rem;
 }
 
@@ -78,11 +80,40 @@
   margin-bottom: 0.7rem;
 }
 
+.ProseMirror hr {
+  border: none;
+  border-top: 1px solid #cbd5e1;
+}
+
 .ProseMirror li {
   margin: 0.12rem 0;
 }
 
 .ProseMirror li p {
+  margin: 0;
+}
+
+.ProseMirror table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid #cbd5e1;
+  padding: 0.55rem 0.7rem;
+  vertical-align: top;
+  text-align: left;
+}
+
+.ProseMirror th {
+  background: #f8fafc;
+  font-weight: 700;
+}
+
+.ProseMirror td p,
+.ProseMirror th p {
   margin: 0;
 }
 
