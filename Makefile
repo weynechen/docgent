@@ -1,5 +1,7 @@
 .PHONY: install format lint test run clean help db-init
 
+DOCKER_COMPOSE := $(shell if docker compose version >/dev/null 2>&1; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo "docker compose"; fi)
+
 # === Setup ===
 install:
 	uv sync --project backend --extra dev
@@ -86,7 +88,7 @@ user-list:
 
 # === Docker: Backend (Development) ===
 docker-up:
-	docker-compose up -d
+	$(DOCKER_COMPOSE) up -d
 	@echo ""
 	@echo "✅ Backend services started!"
 	@echo "   API: http://localhost:8000"
@@ -94,20 +96,20 @@ docker-up:
 	@echo "   PostgreSQL: localhost:5433"
 
 docker-down:
-	docker-compose down
+	$(DOCKER_COMPOSE) down
 
 docker-logs:
-	docker-compose logs -f
+	$(DOCKER_COMPOSE) logs -f
 
 docker-build:
-	docker-compose build
+	$(DOCKER_COMPOSE) build
 
 docker-shell:
-	docker-compose exec app /bin/bash
+	$(DOCKER_COMPOSE) exec app /bin/bash
 
 # === Docker: Production (with Traefik) ===
 docker-prod:
-	docker-compose -f docker-compose.prod.yml up -d
+	$(DOCKER_COMPOSE) -f docker-compose.prod.yml up -d
 	@echo ""
 	@echo "✅ Production services started with Traefik!"
 	@echo ""
@@ -116,23 +118,23 @@ docker-prod:
 	@echo "   Traefik: https://traefik.$$DOMAIN"
 
 docker-prod-down:
-	docker-compose -f docker-compose.prod.yml down
+	$(DOCKER_COMPOSE) -f docker-compose.prod.yml down
 
 docker-prod-logs:
-	docker-compose -f docker-compose.prod.yml logs -f
+	$(DOCKER_COMPOSE) -f docker-compose.prod.yml logs -f
 
 docker-prod-build:
-	docker-compose -f docker-compose.prod.yml build
+	$(DOCKER_COMPOSE) -f docker-compose.prod.yml build
 
 # === Docker: Individual Services ===
 docker-db:
-	docker-compose up -d db
+	$(DOCKER_COMPOSE) up -d db
 	@echo ""
 	@echo "✅ PostgreSQL started on port 5433"
 	@echo "   Connection: postgresql://postgres:postgres@localhost:5433/docgent"
 
 docker-db-stop:
-	docker-compose stop db
+	$(DOCKER_COMPOSE) stop db
 
 # === Cleanup ===
 clean:
