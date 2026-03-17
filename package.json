@@ -9,7 +9,7 @@
     "build": "tsc -b frontend/tsconfig.json && vite build --config frontend/vite.config.ts",
     "preview": "vite preview --config frontend/vite.config.ts",
     "test:frontend": "vitest --config frontend/vitest.config.ts run",
-    "test:backend": "uv run --project backend pytest tests -v"
+    "test:backend": "uv run --project backend pytest backend/tests -v"
   },
   "dependencies": {
     "@floating-ui/react": "^0.27.19",

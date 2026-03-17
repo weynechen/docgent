@@ -1,11 +1,15 @@
 """Tests for AI agent module (LangChain)."""
 
+import json
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.api.routes.v1 import agent as agent_routes
 from app.agents.langchain_assistant import AgentContext, LangChainAssistant, get_agent
 from app.agents.tools.datetime_tool import get_current_datetime
+from app.services.conversation import ConversationService
 
 
 class TestAgentContext:
@@ -105,6 +109,16 @@ class TestAgentRoutes:
         # Actual agent testing would require mocking OpenAI
         pass
 
+    @pytest.mark.anyio
+    async def test_get_conversation_service_for_websocket_returns_service_instance(
+        self, mock_db_session
+    ):
+        """Test WebSocket helpers resolve a conversation service instance."""
+        service = await agent_routes.get_conversation_service_for_websocket(mock_db_session)
+
+        assert isinstance(service, ConversationService)
+        assert service.db is mock_db_session
+
 
 class TestHistoryConversion:
     """Tests for conversation history conversion."""
@@ -142,3 +156,14 @@ class TestHistoryConversion:
         assert isinstance(messages[0], HumanMessage)
         assert isinstance(messages[1], AIMessage)
         assert isinstance(messages[2], SystemMessage)
+
+
+class TestPackageScripts:
+    """Tests for repository package scripts."""
+
+    def test_backend_test_script_points_to_backend_tests(self):
+        """Test backend test script uses the real backend tests directory."""
+        package_json = Path(__file__).resolve().parents[2] / "package.json"
+        scripts = json.loads(package_json.read_text())["scripts"]
+
+        assert "backend/tests" in scripts["test:backend"]

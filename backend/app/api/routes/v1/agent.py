@@ -27,6 +27,7 @@ from app.schemas.conversation import (
     ConversationCreate,
     MessageCreate,
 )
+from app.services.conversation import ConversationService
 from app.services.notebook import NotebookService
 from app.services.workspace import workspace_service
 
@@ -34,6 +35,11 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 conversation_persistence_enabled = True
+
+
+async def get_conversation_service_for_websocket(db: Any) -> ConversationService:
+    """Resolve the async conversation dependency for WebSocket handlers."""
+    return await get_conversation_service(db)
 
 
 class AgentConnectionManager:
@@ -231,7 +237,7 @@ async def agent_websocket(
             if conversation_persistence_enabled:
                 try:
                     async with get_db_context() as db:
-                        conv_service = get_conversation_service(db)
+                        conv_service = await get_conversation_service_for_websocket(db)
 
                         requested_conv_id = data.get("conversation_id")
                         if requested_conv_id:
@@ -371,7 +377,7 @@ async def agent_websocket(
                     if conversation_persistence_enabled and current_conversation_id and final_output:
                         try:
                             async with get_db_context() as db:
-                                conv_service = get_conversation_service(db)
+                                conv_service = await get_conversation_service_for_websocket(db)
                                 await conv_service.add_message(
                                     UUID(current_conversation_id),
                                     MessageCreate(
