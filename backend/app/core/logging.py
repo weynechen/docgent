@@ -337,15 +337,15 @@ class RequestContextMiddleware:
         with bind_log_context(request_id=request_id, **trace_context):
             await self.app(scope, receive, send_with_context)
 
-        duration_ms = round((perf_counter() - started_at) * 1000, 2)
-        log_event(
-            self.logger,
-            logging.INFO,
-            "http.server.request.completed",
-            "HTTP request completed",
-            method=request.method,
-            path=request.url.path,
-            status_code=status_code,
-            client_ip=request.client.host if request.client else None,
-            duration_ms=duration_ms,
-        )
+            duration_ms = round((perf_counter() - started_at) * 1000, 2)
+            log_event(
+                self.logger,
+                logging.INFO,
+                "http.server.request.completed",
+                "HTTP request completed",
+                method=request.method,
+                path=request.url.path,
+                status_code=status_code,
+                client_ip=request.client.host if request.client else None,
+                duration_ms=duration_ms,
+            )
